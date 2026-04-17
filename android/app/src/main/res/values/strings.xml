@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BLE Headphones</string>
+    <string name="connect_button">Connect to BLE Headphones</string>
+    <string name="disconnect_button">Disconnect</string>
+</resources>

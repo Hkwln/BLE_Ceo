@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Any USB device with CDC (serial) class -->
+    <usb-device vendor-id="0x10c4" product-id="0xea60" />
+    <!-- ESP32 XIAO (Seeed) typically uses CP2102 UART chip -->
+</resources>

@@ -12,6 +12,7 @@ import android.util.Log
 class BLEManager(val context: Context, val bluetoothAdapter: BluetoothAdapter?) {
 
     private var scanCallback: ((BluetoothDevice) -> Unit)? = null
+    private var bluetoothStateCallback: ((Boolean) -> Unit)? = null
     private var connectCallback: ((Boolean) -> Unit)? = null
     private var connectedDevice: BluetoothDevice? = null
     private var isScanning = false
@@ -95,5 +96,37 @@ class BLEManager(val context: Context, val bluetoothAdapter: BluetoothAdapter?) 
         stopScan()
         connectedDevice = null
         Log.d("BLEManager", "Disconnected")
+    }
+
+    fun isBluetoothEnabled(): Boolean {
+        return bluetoothAdapter?.isEnabled ?: false
+    }
+
+    fun enableBluetooth() {
+        try {
+            bluetoothAdapter?.enable()
+            Log.d("BLEManager", "Bluetooth enabled")
+        } catch (e: Exception) {
+            Log.e("BLEManager", "Failed to enable Bluetooth: ${e.message}")
+        }
+    }
+
+    fun disableBluetooth() {
+        try {
+            bluetoothAdapter?.disable()
+            Log.d("BLEManager", "Bluetooth disabled")
+        } catch (e: Exception) {
+            Log.e("BLEManager", "Failed to disable Bluetooth: ${e.message}")
+        }
+    }
+
+    fun getBluetoothState(): String {
+        return when (bluetoothAdapter?.state) {
+            BluetoothAdapter.STATE_OFF -> "OFF"
+            BluetoothAdapter.STATE_ON -> "ON"
+            BluetoothAdapter.STATE_TURNING_ON -> "TURNING_ON"
+            BluetoothAdapter.STATE_TURNING_OFF -> "TURNING_OFF"
+            else -> "UNKNOWN"
+        }
     }
 }

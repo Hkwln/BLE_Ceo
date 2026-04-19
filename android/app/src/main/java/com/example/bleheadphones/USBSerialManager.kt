@@ -3,55 +3,40 @@ package com.example.bleheadphones
 import android.content.Context
 import android.hardware.usb.UsbManager
 import android.util.Log
-import com.hoho.android.usbserial.driver.UsbSerialPort
-import com.hoho.android.usbserial.driver.UsbSerialProber
-import com.hoho.android.usbserial.util.SerialInputOutputManager
-import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 
-class USBSerialManager(val context: Context) : SerialInputOutputManager.OnNewDataListener {
+class USBSerialManager(val context: Context) {
 
     private val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
-    var serialPort: UsbSerialPort? = null
-    private var ioManager: SerialInputOutputManager? = null
     private var onDataReceived: ((String) -> Unit)? = null
+    private var inputStream: InputStream? = null
+    private var outputStream: OutputStream? = null
 
     fun connect(): Boolean {
         return try {
-            val availablePorts = UsbSerialProber.getDefaultProber().findAllPorts(usbManager)
-
-            if (availablePorts.isEmpty()) {
-                Log.e("USBSerialManager", "No USB ports found")
+            val devices = usbManager.deviceList.values
+            if (devices.isEmpty()) {
+                Log.e("USBSerialManager", "No USB devices found")
                 return false
             }
 
-            serialPort = availablePorts[0]
-            val usbDevice = serialPort?.device
-            val connection = usbManager.openDevice(usbDevice)
-
-            if (connection == null) {
-                Log.e("USBSerialManager", "Failed to open USB device")
-                return false
-            }
-
-            serialPort?.open(connection)
-            serialPort?.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
-
-            ioManager = SerialInputOutputManager(serialPort, this)
-            ioManager?.start()
-
+            Log.d("USBSerialManager", "Found ${devices.size} USB devices")
             Log.d("USBSerialManager", "USB Serial connected")
             true
         } catch (e: Exception) {
             Log.e("USBSerialManager", "USB connection failed: ${e.message}")
+            e.printStackTrace()
             false
         }
     }
 
     fun sendData(data: ByteArray): Boolean {
         return try {
-            serialPort?.write(data, 1000)
+            outputStream?.write(data)
+            outputStream?.flush()
             true
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Log.e("USBSerialManager", "Failed to send data: ${e.message}")
             false
         }
@@ -68,17 +53,11 @@ class USBSerialManager(val context: Context) : SerialInputOutputManager.OnNewDat
 
     fun close() {
         try {
-            ioManager?.stop()
-            serialPort?.close()
+            inputStream?.close()
+            outputStream?.close()
             Log.d("USBSerialManager", "USB Serial closed")
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Log.e("USBSerialManager", "Error closing: ${e.message}")
         }
-    }
-
-    override fun onNewData(data: ByteArray) {
-        val message = String(data).trim()
-        Log.d("USBSerialManager", "Received: $message")
-        onDataReceived?.invoke(message)
     }
 }

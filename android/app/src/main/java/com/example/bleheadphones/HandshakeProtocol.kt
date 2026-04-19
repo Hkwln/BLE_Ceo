@@ -26,7 +26,8 @@ class HandshakeProtocol(val bleManager: BLEManager, val usbSerialManager: USBSer
 
     private fun monitorUSBConnection() {
         while (isBLEAudioActive) {
-            val usbConnected = usbSerialManager.serialPort != null
+            // Check USB status
+            val usbConnected = usbSerialManager.connect() // Attempt connection as check
 
             if (usbConnected && !isUSBConnected) {
                 Log.d("HandshakeProtocol", "USB detected!")

@@ -62,6 +62,14 @@ class MainActivity : AppCompatActivity() {
         audioCaptureManager = AudioCaptureManager(this)
         handshakeProtocol = HandshakeProtocol(bleManager, usbSerialManager)
 
+        // Check if Bluetooth is enabled
+        if (!bleManager.isBluetoothEnabled()) {
+            updateStatus("Bluetooth is OFF - Turning ON...")
+            bleManager.enableBluetooth()
+        } else {
+            updateStatus("Bluetooth is ON")
+        }
+
         // Button listeners
         connectButton.setOnClickListener { scanForBLEDevice() }
         disconnectButton.setOnClickListener { disconnect() }

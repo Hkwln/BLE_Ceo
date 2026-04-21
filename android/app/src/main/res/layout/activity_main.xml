@@ -6,75 +6,70 @@
     android:orientation="vertical"
     android:background="@color/background">
 
-    <!-- Material 3 Top App Bar -->
-    <com.google.android.material.appbarwidget.MaterialToolbar
+    <!-- Simple Header -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/primary"
-        android:elevation="4dp"
-        app:title="@string/app_name"
-        app:titleTextColor="@color/surface"
-        app:titleTextAppearance="@style/TextAppearance.Material3.HeadlineLarge" />
-
-    <!-- Content -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Status Card with Material 3 -->
-        <com.google.android.material.card.MaterialCardView
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="@color/surface" />
+
+    </FrameLayout>
+
+    <!-- Status Card -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="4dp">
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="4dp"
-            app:strokeColor="@color/divider"
-            app:strokeWidth="1dp">
+            android:orientation="vertical"
+            android:padding="20dp">
 
-            <LinearLayout
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="20dp">
+                android:text="Status"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginBottom="8dp" />
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Status"
-                    android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                    android:textColor="@color/text_secondary"
-                    android:layout_marginBottom="8dp" />
+            <TextView
+                android:id="@+id/status_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Initializing..."
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
 
-                <TextView
-                    android:id="@+id/status_text"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Initializing..."
-                    android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
-                    android:textColor="@color/text_primary" />
+        </LinearLayout>
 
-            </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
-        </com.google.android.material.card.MaterialCardView>
+    <!-- Spacer -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
-        <!-- Spacer -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-    </LinearLayout>
-
-    <!-- Material 3 Buttons -->
+    <!-- Buttons -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp"
-        android:gravity="bottom">
+        android:padding="16dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/connect_button"
@@ -83,9 +78,7 @@
             android:text="@string/connect_button"
             android:textSize="16sp"
             android:layout_marginBottom="12dp"
-            app:cornerRadius="12dp"
-            app:elevation="4dp"
-            app:backgroundTint="@color/primary" />
+            app:cornerRadius="8dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/disconnect_button"
@@ -93,9 +86,7 @@
             android:layout_height="48dp"
             android:text="@string/disconnect_button"
             android:textSize="16sp"
-            app:cornerRadius="12dp"
-            app:elevation="4dp"
-            app:backgroundTint="@color/error" />
+            app:cornerRadius="8dp" />
 
     </LinearLayout>
 

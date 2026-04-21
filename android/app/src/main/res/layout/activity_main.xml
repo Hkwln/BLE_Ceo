@@ -6,23 +6,6 @@
     android:orientation="vertical"
     android:background="@color/background">
 
-    <!-- Simple Header -->
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/primary"
-        android:padding="16dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/app_name"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:textColor="@color/surface" />
-
-    </FrameLayout>
-
     <!-- Status Card -->
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"

@@ -42,6 +42,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         try {
+            // Hide ActionBar completely
+            supportActionBar?.hide()
+            
             setContentView(R.layout.activity_main)
 
             statusText = findViewById(R.id.status_text)

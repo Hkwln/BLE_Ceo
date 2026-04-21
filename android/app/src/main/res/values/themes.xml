@@ -10,6 +10,8 @@
         <item name="android:windowBackground">@color/background</item>
         <item name="android:statusBarColor">@color/primary</item>
         <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
         <item name="materialButtonStyle">@style/Widget.Material3.Button</item>
     </style>
 </resources>

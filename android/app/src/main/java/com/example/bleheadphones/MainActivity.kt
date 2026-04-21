@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -95,6 +96,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scanForBLEDevice() {
+        // Check if Bluetooth is enabled
+        if (!bleManager.isBluetoothEnabled()) {
+            showBluetoothDialog()
+            return
+        }
+
         updateStatus("Scanning for BLE-Headphones...")
         Log.d("MainActivity", "Starting BLE scan")
 
@@ -113,6 +120,29 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun showBluetoothDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Bluetooth ist aus")
+            .setMessage("Bluetooth muss aktiviert sein, um Geräte zu scannen. Jetzt aktivieren?")
+            .setPositiveButton("Ja") { _, _ ->
+                updateStatus("Bluetooth wird aktiviert...")
+                bleManager.enableBluetooth()
+                // Nach kurzer Verzögerung automatisch scannen
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    if (bleManager.isBluetoothEnabled()) {
+                        scanForBLEDevice()
+                    } else {
+                        updateStatus("Bluetooth konnte nicht aktiviert werden")
+                    }
+                }, 1000)
+            }
+            .setNegativeButton("Nein") { dialog, _ ->
+                updateStatus("Scan abgebrochen")
+                dialog.dismiss()
+            }
+            .show()
     }
 
     private fun disconnect() {

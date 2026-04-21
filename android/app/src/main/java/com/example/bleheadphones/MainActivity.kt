@@ -5,7 +5,6 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
-import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -22,60 +21,63 @@ class MainActivity : AppCompatActivity() {
     private lateinit var audioCaptureManager: AudioCaptureManager
     private lateinit var handshakeProtocol: HandshakeProtocol
 
-    private lateinit var statusText: TextView
-    private lateinit var connectButton: Button
-    private lateinit var disconnectButton: Button
+    private var statusText: TextView? = null
+    private var connectButton: Button? = null
+    private var disconnectButton: Button? = null
 
     private val PERMISSIONS = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         arrayOf(
             Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.READ_PHONE_STATE
+            Manifest.permission.RECORD_AUDIO
         )
     } else {
         arrayOf(
             Manifest.permission.BLUETOOTH,
             Manifest.permission.BLUETOOTH_ADMIN,
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.READ_PHONE_STATE
+            Manifest.permission.RECORD_AUDIO
         )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        try {
+            setContentView(R.layout.activity_main)
 
-        statusText = findViewById(R.id.status_text)
-        connectButton = findViewById(R.id.connect_button)
-        disconnectButton = findViewById(R.id.disconnect_button)
+            statusText = findViewById(R.id.status_text)
+            connectButton = findViewById(R.id.connect_button)
+            disconnectButton = findViewById(R.id.disconnect_button)
 
-        // Request permissions
-        requestPermissions()
+            // Request permissions
+            requestPermissions()
 
-        // Initialize managers
-        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        val bluetoothAdapter = bluetoothManager.adapter
+            // Initialize managers
+            val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+            val bluetoothAdapter = bluetoothManager.adapter
 
-        bleManager = BLEManager(this, bluetoothAdapter)
-        usbSerialManager = USBSerialManager(this)
-        audioCaptureManager = AudioCaptureManager(this)
-        handshakeProtocol = HandshakeProtocol(bleManager, usbSerialManager)
+            bleManager = BLEManager(this, bluetoothAdapter)
+            usbSerialManager = USBSerialManager(this)
+            audioCaptureManager = AudioCaptureManager(this)
+            handshakeProtocol = HandshakeProtocol(bleManager, usbSerialManager)
 
-        // Check if Bluetooth is enabled
-        if (!bleManager.isBluetoothEnabled()) {
-            updateStatus("Bluetooth is OFF - Turning ON...")
-            bleManager.enableBluetooth()
-        } else {
-            updateStatus("Bluetooth is ON")
+            // Check if Bluetooth is enabled
+            if (!bleManager.isBluetoothEnabled()) {
+                updateStatus("Bluetooth is OFF - Turning ON...")
+                bleManager.enableBluetooth()
+            } else {
+                updateStatus("Bluetooth is ON")
+            }
+
+            // Button listeners
+            connectButton?.setOnClickListener { scanForBLEDevice() }
+            disconnectButton?.setOnClickListener { disconnect() }
+
+            updateStatus("Ready")
+            Log.d("MainActivity", "App initialized successfully")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Fatal error during onCreate: ${e.message}", e)
+            e.printStackTrace()
         }
-
-        // Button listeners
-        connectButton.setOnClickListener { scanForBLEDevice() }
-        disconnectButton.setOnClickListener { disconnect() }
-
-        updateStatus("Idle")
-        Log.d("MainActivity", "App initialized")
     }
 
     private fun requestPermissions() {
@@ -111,22 +113,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun disconnect() {
-        bleManager.disconnect()
-        usbSerialManager.close()
-        handshakeProtocol.stop()
-        updateStatus("Disconnected")
-        Log.d("MainActivity", "Disconnected")
+        try {
+            bleManager.disconnect()
+            usbSerialManager.close()
+            handshakeProtocol.stop()
+            updateStatus("Disconnected")
+            Log.d("MainActivity", "Disconnected")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error during disconnect: ${e.message}")
+        }
     }
 
     fun updateStatus(message: String) {
-        runOnUiThread {
-            statusText.text = "Status: $message"
-            Log.d("MainActivity", "Status: $message")
+        try {
+            runOnUiThread {
+                statusText?.text = "Status: $message"
+                Log.d("MainActivity", "Status: $message")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error updating status: ${e.message}")
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        disconnect()
+        try {
+            disconnect()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error in onDestroy: ${e.message}")
+        }
     }
 }

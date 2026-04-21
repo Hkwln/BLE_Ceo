@@ -3,41 +3,105 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:background="@color/background">
 
-    <TextView
+    <!-- Header -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/app_name"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="16dp" />
+        android:orientation="vertical"
+        android:background="@color/primary"
+        android:padding="24dp">
 
-    <TextView
-        android:id="@+id/status_text"
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textSize="32sp"
+            android:textStyle="bold"
+            android:textColor="@color/surface"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Wireless Audio Streaming"
+            android:textSize="14sp"
+            android:textColor="#b3e5fc" />
+
+    </LinearLayout>
+
+    <!-- Status Card -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Status: Idle"
-        android:textSize="16sp"
-        android:padding="16dp"
-        android:background="@drawable/status_background"
-        android:layout_marginBottom="16dp" />
+        android:layout_margin="16dp">
 
-    <Button
-        android:id="@+id/connect_button"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@color/surface"
+            android:padding="20dp"
+            android:elevation="4dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Status"
+                android:textSize="14sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/status_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Initializing..."
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- Spacer -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- Button Container -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/connect_button"
-        android:textSize="16sp"
-        android:padding="12dp"
-        android:layout_marginBottom="8dp" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <Button
-        android:id="@+id/disconnect_button"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/disconnect_button"
-        android:textSize="16sp"
-        android:padding="12dp" />
+        <Button
+            android:id="@+id/connect_button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="@string/connect_button"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/surface"
+            android:background="@color/primary"
+            android:layout_marginBottom="12dp"
+            android:elevation="4dp" />
+
+        <Button
+            android:id="@+id/disconnect_button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="@string/disconnect_button"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/surface"
+            android:background="@color/error"
+            android:elevation="4dp" />
+
+    </LinearLayout>
 
 </LinearLayout>

@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
     
     private var bluetoothReceiver: BroadcastReceiver? = null
     private var isWaitingForBluetoothEnable = false
+    private var bluetoothAdapter: BluetoothAdapter? = null
 
     private val PERMISSIONS = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         arrayOf(
@@ -45,6 +46,8 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.RECORD_AUDIO
         )
     }
+    
+    private val REQUEST_ENABLE_BT = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,7 +66,7 @@ class MainActivity : AppCompatActivity() {
 
             // Initialize managers
             val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-            val bluetoothAdapter = bluetoothManager.adapter
+            bluetoothAdapter = bluetoothManager.adapter
 
             bleManager = BLEManager(this, bluetoothAdapter)
             usbSerialManager = USBSerialManager(this)
@@ -176,13 +179,46 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Ja") { _, _ ->
                 updateStatus("Bluetooth wird aktiviert...")
                 isWaitingForBluetoothEnable = true
-                bleManager.enableBluetooth()
+                enableBluetoothDialog()
             }
             .setNegativeButton("Nein") { dialog, _ ->
                 updateStatus("Scan abgebrochen")
                 dialog.dismiss()
             }
             .show()
+    }
+
+    private fun enableBluetoothDialog() {
+        val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                    startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
+                } else {
+                    Log.e("MainActivity", "BLUETOOTH_CONNECT permission not granted")
+                    updateStatus("Bluetooth Permission denied")
+                }
+            } else {
+                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error enabling Bluetooth: ${e.message}", e)
+            updateStatus("Could not enable Bluetooth")
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_ENABLE_BT) {
+            if (resultCode == RESULT_OK) {
+                Log.d("MainActivity", "Bluetooth enabled by user")
+                updateStatus("Bluetooth enabled")
+            } else {
+                Log.d("MainActivity", "User rejected Bluetooth enable")
+                updateStatus("Bluetooth enable rejected")
+                isWaitingForBluetoothEnable = false
+            }
+        }
     }
 
     private fun disconnect() {

@@ -1,0 +1,14 @@
+{
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "clangd.arguments": [
+    "--header-insertion=iwyu",
+    "--completion-style=detailed",
+    "-j=4"
+  ],
+  "cmake.sourceDirectory": "${workspaceFolder}/esp32",
+  "files.exclude": {
+    "**/.pio": true,
+    "**/.git": true,
+    "**/__pycache__": true
+  }
+}

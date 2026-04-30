@@ -152,20 +152,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startBLEScan() {
-        updateStatus("Scanning for BLE-Headphones...")
+        updateStatus("🔍 Scanning for BLE-Headphones...\n(Timeout: 30 seconds)")
         Log.d("MainActivity", "Starting BLE scan")
 
         bleManager.startScan("BLE-Headphones") { device ->
-            updateStatus("Found device! Connecting...")
+            updateStatus("✅ Found device!\nConnecting to ${device.name}...")
             Log.d("MainActivity", "Device found: ${device.name}")
 
             bleManager.connectToDevice(device) { connected ->
                 if (connected) {
-                    updateStatus("BLE Connected!")
+                    updateStatus("✅ BLE Connected!\n${device.name}")
                     Log.d("MainActivity", "BLE Connected!")
                     handshakeProtocol.startAudioStream()
                 } else {
-                    updateStatus("Connection failed")
+                    updateStatus("❌ Connection failed")
                     Log.e("MainActivity", "Connection failed")
                 }
             }

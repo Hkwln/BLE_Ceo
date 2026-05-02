@@ -1,14 +1,18 @@
 package com.example.bleheadphones
 
 import android.Manifest
+import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.widget.Button
 import android.widget.ScrollView
@@ -23,7 +27,6 @@ class MainActivity : AppCompatActivity() {
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var isScanning = false
     private val handler = Handler(Looper.getMainLooper())
-    private val PERMISSION_REQUEST_CODE = 42
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,11 +38,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.clear_button).setOnClickListener { logText?.text = "" }
 
         log("════════════════════════════════════════")
-        log("BLE Scanner v5.1")
+        log("BLE Scanner v5.2 - Permission Helper")
         log("════════════════════════════════════════")
-
-        // REQUEST PERMISSIONS IMMEDIATELY!
-        requestAllPermissionsNow()
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
@@ -52,84 +52,66 @@ class MainActivity : AppCompatActivity() {
         log("✅ Bluetooth adapter found")
         
         if (!bluetoothAdapter?.isEnabled!!) {
-            log("⚠️  Bluetooth is OFF - enabling...")
-            try {
-                bluetoothAdapter?.enable()
-                Thread.sleep(500)
-            } catch (e: Exception) {
-                log("Could not enable: ${e.message}")
-            }
-        }
-        
-        if (bluetoothAdapter?.isEnabled!!) {
+            log("⚠️  Bluetooth is OFF")
+        } else {
             log("✅ Bluetooth is ON")
-        } else {
-            log("❌ Bluetooth is OFF")
         }
+
+        // Check permissions and show help if needed
+        checkAndFixPermissions()
     }
 
-    private fun requestAllPermissionsNow() {
-        val allPermissions = mutableListOf<String>()
+    private fun checkAndFixPermissions() {
+        log("\n📋 Checking permissions...")
 
-        // Add all permissions we need
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            allPermissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            allPermissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-        } else {
-            allPermissions.add(Manifest.permission.BLUETOOTH)
-            allPermissions.add(Manifest.permission.BLUETOOTH_ADMIN)
-        }
+        val locationOK = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
 
-        // LOCATION - THIS IS CRITICAL
-        allPermissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
-        allPermissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
-
-        // Check which ones are missing
-        val needPermissions = allPermissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (needPermissions.isNotEmpty()) {
-            log("🔐 REQUESTING PERMISSIONS (dialog will appear):")
-            needPermissions.forEach { log("   - $it") }
-            
-            // Request ALL at once
-            ActivityCompat.requestPermissions(
+        val bluetoothScanOK = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.checkSelfPermission(
                 this,
-                needPermissions.toTypedArray(),
-                PERMISSION_REQUEST_CODE
-            )
+                Manifest.permission.BLUETOOTH_SCAN
+            ) == PackageManager.PERMISSION_GRANTED
         } else {
-            log("✅ ALL PERMISSIONS ALREADY GRANTED")
+            true
+        }
+
+        log("Location: ${if(locationOK) "✅" else "❌"}")
+        log("BLE Scan: ${if(bluetoothScanOK) "✅" else "❌"}")
+
+        if (!locationOK || !bluetoothScanOK) {
+            log("\n⚠️  Permissions missing!")
+            showPermissionDialog()
+        } else {
+            log("\n✅ All permissions OK!")
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    private fun showPermissionDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("⚠️ Permissions Needed")
+            .setMessage(
+                "BLE Scanning requires:\n\n" +
+                "• Location (Standort)\n" +
+                "• Bluetooth Scan\n\n" +
+                "Tap 'Open Settings' and enable ALL permissions"
+            )
+            .setPositiveButton("Open Settings") { _, _ ->
+                openAppSettings()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun openAppSettings() {
+        log("\n→ Opening app settings...")
         
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            log("\n📋 Permission Results:")
-            
-            var allGranted = true
-            for (i in permissions.indices) {
-                val perm = permissions[i].split(".").last()
-                val granted = grantResults[i] == PackageManager.PERMISSION_GRANTED
-                log("  ${if(granted) "✅" else "❌"} $perm")
-                if (!granted) allGranted = false
-            }
-            
-            if (allGranted) {
-                log("\n✅ ALL PERMISSIONS GRANTED - Ready to scan!")
-            } else {
-                log("\n❌ Some permissions still denied")
-                log("   Go to Settings → Apps → BLE Headphones → Permissions")
-                log("   and enable ALL permissions")
-            }
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", packageName, null)
         }
+        startActivity(intent)
     }
 
     private fun startScan() {
@@ -142,19 +124,25 @@ class MainActivity : AppCompatActivity() {
         log("🔍 SCAN START (10 seconds)")
         log("════════════════════════════════════════")
 
-        // Final checks before scan
         if (!bluetoothAdapter?.isEnabled!!) {
-            log("❌ Bluetooth OFF - turn it on!")
+            log("❌ Bluetooth OFF")
             return
         }
 
-        if (ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            log("❌ Location permission STILL DENIED")
-            log("   Go to Settings and enable it!")
+        val locationOK = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!locationOK) {
+            log("❌ Location permission DENIED")
+            AlertDialog.Builder(this)
+                .setTitle("Need Location Permission")
+                .setMessage("Go to Settings → Permissions → Location and enable it")
+                .setPositiveButton("Open Settings") { _, _ ->
+                    openAppSettings()
+                }
+                .show()
             return
         }
 

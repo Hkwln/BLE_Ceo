@@ -35,6 +35,7 @@ class MainActivity : AppCompatActivity() {
     private var isScanning = false
     private val handler = Handler(Looper.getMainLooper())
     private val REQUEST_PERMISSIONS = 999
+    private val REQUEST_RECORD_AUDIO = 1000
     
     private var connectedDevice: BluetoothDevice? = null
     private var bluetoothGatt: BluetoothGatt? = null
@@ -63,7 +64,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.disconnect_button).setOnClickListener { disconnect() }
 
         log("════════════════════════════════════════")
-        log("BLE Headphones App - v9.0 AUDIO")
+        log("BLE Headphones App - v10.0 AUDIO FIX")
         log("════════════════════════════════════════")
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -103,7 +104,7 @@ class MainActivity : AppCompatActivity() {
             }
             add(Manifest.permission.ACCESS_FINE_LOCATION)
             add(Manifest.permission.ACCESS_COARSE_LOCATION)
-            add(Manifest.permission.RECORD_AUDIO)
+            add(Manifest.permission.RECORD_AUDIO)  // CRITICAL!
         }
 
         val missingPermissions = requiredPermissions.filter {
@@ -111,7 +112,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (missingPermissions.isNotEmpty()) {
-            log("🔐 Requesting permissions...")
+            log("🔐 Requesting permissions:")
+            missingPermissions.forEach { 
+                log("   - ${it.split(".").last()}")
+            }
             ActivityCompat.requestPermissions(
                 this,
                 missingPermissions.toTypedArray(),
@@ -128,8 +132,14 @@ class MainActivity : AppCompatActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        
         if (requestCode == REQUEST_PERMISSIONS) {
-            log("✅ Permissions done")
+            log("📋 Permission results:")
+            for (i in permissions.indices) {
+                val perm = permissions[i].split(".").last()
+                val granted = grantResults.getOrNull(i) == PackageManager.PERMISSION_GRANTED
+                log("  ${if(granted) "✅" else "❌"} $perm")
+            }
         }
     }
 
@@ -301,8 +311,20 @@ class MainActivity : AppCompatActivity() {
                     if (dataCharacteristic != null) {
                         log("✅ Found data characteristic!")
                         log("📊 Ready for audio streaming!")
-                        log("\n🎵 Starting audio capture...")
-                        startAudioStream()
+                        
+                        // Check RECORD_AUDIO permission before starting
+                        if (ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                Manifest.permission.RECORD_AUDIO
+                            ) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            log("\n🎵 Starting audio capture...")
+                            startAudioStream()
+                        } else {
+                            log("❌ RECORD_AUDIO permission NOT granted!")
+                            log("📱 Go to Settings → Apps → Permissions → Microphone")
+                            log("   and enable for this app")
+                        }
                     } else {
                         log("❌ Characteristic not found")
                     }
@@ -318,6 +340,16 @@ class MainActivity : AppCompatActivity() {
     private fun startAudioStream() {
         if (isStreamingAudio) return
         
+        // Double-check permission
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            log("❌ RECORD_AUDIO permission denied - cannot start!")
+            return
+        }
+        
         isStreamingAudio = true
         log("🎤 Initializing audio capture...")
 
@@ -330,25 +362,22 @@ class MainActivity : AppCompatActivity() {
                 SAMPLE_RATE,
                 CHANNEL_CONFIG,
                 AUDIO_FORMAT,
-                bufferSize
+                bufferSize * 4  // Increase buffer
             )
 
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.RECORD_AUDIO
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                log("❌ RECORD_AUDIO permission denied")
+            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                log("❌ AudioRecord initialization FAILED!")
                 isStreamingAudio = false
                 return
             }
 
             audioRecord?.startRecording()
             log("✅ Audio recording started!")
+            log("🔊 Streaming audio to BLE device...")
 
             // Start streaming in background thread
             audioThread = Thread {
-                val buffer = ByteArray(512) // 512 bytes per chunk
+                val buffer = ByteArray(1024)  // Bigger chunks for better streaming
                 var chunksLogged = 0
                 
                 while (isStreamingAudio && audioRecord != null) {
@@ -360,8 +389,10 @@ class MainActivity : AppCompatActivity() {
                             sendAudioData(buffer.copyOf(bytesRead))
                             
                             chunksLogged++
-                            if (chunksLogged % 100 == 0) {
-                                log("🔊 Streamed $chunksLogged audio chunks (~${chunksLogged * 512 / 1024}KB)")
+                            if (chunksLogged % 50 == 0) {
+                                runOnUiThread {
+                                    log("🔊 Streamed $chunksLogged audio chunks (~${chunksLogged * 1024 / 1024}MB)")
+                                }
                             }
                         }
                     } catch (e: Exception) {
@@ -392,9 +423,17 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // Write to BLE characteristic
-            dataCharacteristic!!.value = data
-            bluetoothGatt!!.writeCharacteristic(dataCharacteristic!!)
+            // Split into BLE-safe chunks (max 512 bytes per write)
+            var offset = 0
+            while (offset < data.size) {
+                val chunkSize = minOf(512, data.size - offset)
+                val chunk = data.sliceArray(offset until offset + chunkSize)
+                
+                dataCharacteristic!!.value = chunk
+                bluetoothGatt!!.writeCharacteristic(dataCharacteristic!!)
+                
+                offset += chunkSize
+            }
             
         } catch (e: Exception) {
             // Silent - too many log messages

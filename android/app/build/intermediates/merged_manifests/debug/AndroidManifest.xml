@@ -8,17 +8,23 @@
         android:minSdkVersion="21"
         android:targetSdkVersion="33" />
 
-    <!-- Bluetooth permissions -->
+    <!-- === BLUETOOTH PERMISSIONS === -->
+    <!-- Required for all Bluetooth operations -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+
+    <!-- Android 12+ specific BLE permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- Location - REQUIRED for BLE scanning on Android 6+ -->
+    <!-- === LOCATION PERMISSIONS === -->
+    <!-- REQUIRED: Android won't allow BLE scanning without location permission -->
+    <!-- (Even though we don't actually use location data) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!-- Audio capture (for YouTube/System Audio) -->
+    <!-- === AUDIO PERMISSIONS === -->
+    <!-- For capturing YouTube/system audio -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <permission

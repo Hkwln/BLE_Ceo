@@ -10,101 +10,107 @@
 9        android:targetSdkVersion="33" />
 9-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml
 10
-11    <!-- Bluetooth permissions -->
-12    <uses-permission android:name="android.permission.BLUETOOTH" />
-12-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:5:5-68
-12-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:5:22-65
-13    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-13-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:6:5-74
-13-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:6:22-71
-14    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-14-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:7:5-73
-14-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:7:22-70
-15    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-15-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:8:5-76
-15-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:8:22-73
-16
-17    <!-- Location - REQUIRED for BLE scanning on Android 6+ -->
-18    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-18-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:11:5-79
-18-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:11:22-76
-19    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-19-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:12:5-81
-19-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:12:22-78
-20
-21    <!-- Audio capture (for YouTube/System Audio) -->
-22    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-22-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:15:5-71
-22-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:15:22-68
-23
-24    <permission
-24-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:22:5-24:47
-25        android:name="com.example.bleheadphones.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-25-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:23:9-81
-26        android:protectionLevel="signature" />
-26-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:24:9-44
-27
-28    <uses-permission android:name="com.example.bleheadphones.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
-28-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:26:5-97
-28-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:26:22-94
+11    <!-- === BLUETOOTH PERMISSIONS === -->
+12    <!-- Required for all Bluetooth operations -->
+13    <uses-permission android:name="android.permission.BLUETOOTH" />
+13-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:6:5-68
+13-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:6:22-65
+14    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+14-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:7:5-74
+14-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:7:22-71
+15
+16    <!-- Android 12+ specific BLE permissions -->
+17    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+17-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:10:5-73
+17-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:10:22-70
+18    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+18-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:11:5-76
+18-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:11:22-73
+19
+20    <!-- === LOCATION PERMISSIONS === -->
+21    <!-- REQUIRED: Android won't allow BLE scanning without location permission -->
+22    <!-- (Even though we don't actually use location data) -->
+23    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+23-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:16:5-79
+23-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:16:22-76
+24    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+24-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:17:5-81
+24-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:17:22-78
+25
+26    <!-- === AUDIO PERMISSIONS === -->
+27    <!-- For capturing YouTube/system audio -->
+28    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+28-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:21:5-71
+28-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:21:22-68
 29
-30    <application
-30-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:17:5-35:19
-31        android:allowBackup="true"
-31-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:18:9-35
-32        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-32-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:28:18-86
-33        android:debuggable="true"
-33-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:19:9-34
-34        android:icon="@mipmap/ic_launcher"
-34-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:20:9-43
-35        android:label="@string/app_name"
-35-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:21:9-41
-36        android:roundIcon="@mipmap/ic_launcher_round"
-36-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:22:9-54
-37        android:supportsRtl="true"
-37-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:23:9-35
-38        android:theme="@style/Theme.BLEHeadphones" >
-38-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:24:9-51
-39        <activity
-39-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:26:9-33:20
-40            android:name="com.example.bleheadphones.MainActivity"
-40-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:27:13-41
-41            android:exported="true" >
-41-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:28:13-36
-42            <intent-filter>
-42-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:29:13-32:29
-43                <action android:name="android.intent.action.MAIN" />
-43-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:30:17-69
-43-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:30:25-66
-44
-45                <category android:name="android.intent.category.LAUNCHER" />
-45-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:31:17-77
-45-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:31:27-74
-46            </intent-filter>
-47        </activity>
-48
-49        <provider
-49-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
-50            android:name="androidx.startup.InitializationProvider"
-50-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:25:13-67
-51            android:authorities="com.example.bleheadphones.androidx-startup"
-51-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:26:13-68
-52            android:exported="false" >
-52-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:27:13-37
-53            <meta-data
-53-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
-54                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-54-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:30:17-75
-55                android:value="androidx.startup" />
-55-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:31:17-49
-56            <meta-data
-56-->[androidx.lifecycle:lifecycle-process:2.4.1] /home/openclaw-worker/.gradle/caches/transforms-3/94430dc13316aeda0f68e85c4f4b7237/transformed/jetified-lifecycle-process-2.4.1/AndroidManifest.xml:31:13-33:52
-57                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-57-->[androidx.lifecycle:lifecycle-process:2.4.1] /home/openclaw-worker/.gradle/caches/transforms-3/94430dc13316aeda0f68e85c4f4b7237/transformed/jetified-lifecycle-process-2.4.1/AndroidManifest.xml:32:17-78
-58                android:value="androidx.startup" />
-58-->[androidx.lifecycle:lifecycle-process:2.4.1] /home/openclaw-worker/.gradle/caches/transforms-3/94430dc13316aeda0f68e85c4f4b7237/transformed/jetified-lifecycle-process-2.4.1/AndroidManifest.xml:33:17-49
-59        </provider>
-60    </application>
-61
-62</manifest>
+30    <permission
+30-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:22:5-24:47
+31        android:name="com.example.bleheadphones.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+31-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:23:9-81
+32        android:protectionLevel="signature" />
+32-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:24:9-44
+33
+34    <uses-permission android:name="com.example.bleheadphones.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+34-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:26:5-97
+34-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:26:22-94
+35
+36    <application
+36-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:23:5-41:19
+37        android:allowBackup="true"
+37-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:24:9-35
+38        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+38-->[androidx.core:core:1.9.0] /home/openclaw-worker/.gradle/caches/transforms-3/5240fb8d2daabb9e8a1fb5f5dd62b358/transformed/core-1.9.0/AndroidManifest.xml:28:18-86
+39        android:debuggable="true"
+39-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:25:9-34
+40        android:icon="@mipmap/ic_launcher"
+40-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:26:9-43
+41        android:label="@string/app_name"
+41-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:27:9-41
+42        android:roundIcon="@mipmap/ic_launcher_round"
+42-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:28:9-54
+43        android:supportsRtl="true"
+43-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:29:9-35
+44        android:theme="@style/Theme.BLEHeadphones" >
+44-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:30:9-51
+45        <activity
+45-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:32:9-39:20
+46            android:name="com.example.bleheadphones.MainActivity"
+46-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:33:13-41
+47            android:exported="true" >
+47-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:34:13-36
+48            <intent-filter>
+48-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:35:13-38:29
+49                <action android:name="android.intent.action.MAIN" />
+49-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:36:17-69
+49-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:36:25-66
+50
+51                <category android:name="android.intent.category.LAUNCHER" />
+51-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:37:17-77
+51-->/home/openclaw-worker/.openclaw/workspace/ble-headphones/android/app/src/main/AndroidManifest.xml:37:27-74
+52            </intent-filter>
+53        </activity>
+54
+55        <provider
+55-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
+56            android:name="androidx.startup.InitializationProvider"
+56-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:25:13-67
+57            android:authorities="com.example.bleheadphones.androidx-startup"
+57-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:26:13-68
+58            android:exported="false" >
+58-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:27:13-37
+59            <meta-data
+59-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
+60                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+60-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:30:17-75
+61                android:value="androidx.startup" />
+61-->[androidx.emoji2:emoji2:1.2.0] /home/openclaw-worker/.gradle/caches/transforms-3/5dcea79385f2c028e21d3b49c2fd53ce/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:31:17-49
+62            <meta-data
+62-->[androidx.lifecycle:lifecycle-process:2.4.1] /home/openclaw-worker/.gradle/caches/transforms-3/94430dc13316aeda0f68e85c4f4b7237/transformed/jetified-lifecycle-process-2.4.1/AndroidManifest.xml:31:13-33:52
+63                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+63-->[androidx.lifecycle:lifecycle-process:2.4.1] /home/openclaw-worker/.gradle/caches/transforms-3/94430dc13316aeda0f68e85c4f4b7237/transformed/jetified-lifecycle-process-2.4.1/AndroidManifest.xml:32:17-78
+64                android:value="androidx.startup" />
+64-->[androidx.lifecycle:lifecycle-process:2.4.1] /home/openclaw-worker/.gradle/caches/transforms-3/94430dc13316aeda0f68e85c4f4b7237/transformed/jetified-lifecycle-process-2.4.1/AndroidManifest.xml:33:17-49
+65        </provider>
+66    </application>
+67
+68</manifest>

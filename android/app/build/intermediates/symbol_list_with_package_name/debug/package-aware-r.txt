@@ -3059,6 +3059,7 @@ id design_menu_item_text
 id design_navigation_view
 id device_address
 id device_name
+id devices_container
 id devices_list
 id dialog_button
 id dimensions
@@ -3494,6 +3495,7 @@ layout abc_search_view
 layout abc_select_dialog_material
 layout abc_tooltip
 layout activity_main
+layout activity_main_new
 layout activity_test
 layout custom_dialog
 layout design_bottom_navigation_item

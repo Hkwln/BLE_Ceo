@@ -9,6 +9,10 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -21,6 +25,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
 
@@ -34,6 +39,18 @@ class MainActivity : AppCompatActivity() {
     private var connectedDevice: BluetoothDevice? = null
     private var bluetoothGatt: BluetoothGatt? = null
     private var dataCharacteristic: BluetoothGattCharacteristic? = null
+    
+    // Audio
+    private var audioRecord: AudioRecord? = null
+    private var isStreamingAudio = false
+    private var audioThread: Thread? = null
+    
+    private val SERVICE_UUID = UUID.fromString("4fafc201-1fb5-459e-8fcc-c5c9c331914b")
+    private val CHAR_UUID = UUID.fromString("beb5483e-36e1-4688-b7f5-ea07361b26a8")
+    
+    private val SAMPLE_RATE = 44100
+    private val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_STEREO
+    private val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,7 +63,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.disconnect_button).setOnClickListener { disconnect() }
 
         log("════════════════════════════════════════")
-        log("BLE Headphones App - v8.0")
+        log("BLE Headphones App - v9.0 AUDIO")
         log("════════════════════════════════════════")
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -86,6 +103,7 @@ class MainActivity : AppCompatActivity() {
             }
             add(Manifest.permission.ACCESS_FINE_LOCATION)
             add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            add(Manifest.permission.RECORD_AUDIO)
         }
 
         val missingPermissions = requiredPermissions.filter {
@@ -111,7 +129,7 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_PERMISSIONS) {
-            log("✅ Permissions granted")
+            log("✅ Permissions done")
         }
     }
 
@@ -264,6 +282,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 android.bluetooth.BluetoothProfile.STATE_DISCONNECTED -> {
                     log("❌ DISCONNECTED")
+                    stopAudioStream()
                     bluetoothGatt?.close()
                     bluetoothGatt = null
                 }
@@ -276,29 +295,14 @@ class MainActivity : AppCompatActivity() {
             if (status == android.bluetooth.BluetoothGatt.GATT_SUCCESS) {
                 log("✅ Services discovered")
                 
-                // Find our characteristic
-                val service = gatt?.getService(java.util.UUID.fromString("4fafc201-1fb5-459e-8fcc-c5c9c331914b"))
+                val service = gatt?.getService(SERVICE_UUID)
                 if (service != null) {
-                    dataCharacteristic = service.getCharacteristic(java.util.UUID.fromString("beb5483e-36e1-4688-b7f5-ea07361b26a8"))
+                    dataCharacteristic = service.getCharacteristic(CHAR_UUID)
                     if (dataCharacteristic != null) {
                         log("✅ Found data characteristic!")
-                        log("📊 Ready to stream audio!")
-                        // Enable notifications
-                        try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                if (ActivityCompat.checkSelfPermission(
-                                        this@MainActivity,
-                                        Manifest.permission.BLUETOOTH_CONNECT
-                                    ) == PackageManager.PERMISSION_GRANTED
-                                ) {
-                                    gatt?.setCharacteristicNotification(dataCharacteristic, true)
-                                }
-                            } else {
-                                gatt?.setCharacteristicNotification(dataCharacteristic, true)
-                            }
-                        } catch (e: Exception) {
-                            log("Error enabling notifications: ${e.message}")
-                        }
+                        log("📊 Ready for audio streaming!")
+                        log("\n🎵 Starting audio capture...")
+                        startAudioStream()
                     } else {
                         log("❌ Characteristic not found")
                     }
@@ -309,27 +313,115 @@ class MainActivity : AppCompatActivity() {
                 log("❌ Service discovery failed: $status")
             }
         }
+    }
 
-        override fun onCharacteristicRead(
-            gatt: BluetoothGatt?,
-            characteristic: BluetoothGattCharacteristic?,
-            status: Int
-        ) {
-            super.onCharacteristicRead(gatt, characteristic, status)
-            log("📖 Characteristic read: ${characteristic?.value?.size} bytes")
+    private fun startAudioStream() {
+        if (isStreamingAudio) return
+        
+        isStreamingAudio = true
+        log("🎤 Initializing audio capture...")
+
+        try {
+            val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+            log("📊 Buffer size: $bufferSize bytes")
+
+            audioRecord = AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                SAMPLE_RATE,
+                CHANNEL_CONFIG,
+                AUDIO_FORMAT,
+                bufferSize
+            )
+
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.RECORD_AUDIO
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                log("❌ RECORD_AUDIO permission denied")
+                isStreamingAudio = false
+                return
+            }
+
+            audioRecord?.startRecording()
+            log("✅ Audio recording started!")
+
+            // Start streaming in background thread
+            audioThread = Thread {
+                val buffer = ByteArray(512) // 512 bytes per chunk
+                var chunksLogged = 0
+                
+                while (isStreamingAudio && audioRecord != null) {
+                    try {
+                        val bytesRead = audioRecord!!.read(buffer, 0, buffer.size)
+                        
+                        if (bytesRead > 0) {
+                            // Send to BLE device
+                            sendAudioData(buffer.copyOf(bytesRead))
+                            
+                            chunksLogged++
+                            if (chunksLogged % 100 == 0) {
+                                log("🔊 Streamed $chunksLogged audio chunks (~${chunksLogged * 512 / 1024}KB)")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        log("❌ Audio read error: ${e.message}")
+                        break
+                    }
+                }
+            }
+            audioThread?.start()
+
+        } catch (e: Exception) {
+            log("❌ Audio error: ${e.message}")
+            isStreamingAudio = false
         }
+    }
 
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt?,
-            characteristic: BluetoothGattCharacteristic?
-        ) {
-            super.onCharacteristicChanged(gatt, characteristic)
-            log("📝 Data received: ${characteristic?.value?.size} bytes")
+    private fun sendAudioData(data: ByteArray) {
+        if (dataCharacteristic == null || bluetoothGatt == null) return
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ActivityCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.BLUETOOTH_CONNECT
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    return
+                }
+            }
+
+            // Write to BLE characteristic
+            dataCharacteristic!!.value = data
+            bluetoothGatt!!.writeCharacteristic(dataCharacteristic!!)
+            
+        } catch (e: Exception) {
+            // Silent - too many log messages
+        }
+    }
+
+    private fun stopAudioStream() {
+        if (!isStreamingAudio) return
+        
+        isStreamingAudio = false
+        log("🛑 Stopping audio stream...")
+
+        try {
+            audioRecord?.stop()
+            audioRecord?.release()
+            audioRecord = null
+            audioThread?.join(1000)
+            log("✅ Audio stream stopped")
+        } catch (e: Exception) {
+            log("Error stopping audio: ${e.message}")
         }
     }
 
     private fun disconnect() {
         log("\n→ Disconnecting...")
+        stopAudioStream()
+        
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (ActivityCompat.checkSelfPermission(
@@ -346,6 +438,7 @@ class MainActivity : AppCompatActivity() {
             }
             bluetoothGatt = null
             connectedDevice = null
+            addedDevices.clear()
             log("✅ Disconnected")
         } catch (e: Exception) {
             log("Error: ${e.message}")

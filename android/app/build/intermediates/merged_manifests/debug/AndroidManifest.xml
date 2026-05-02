@@ -8,22 +8,11 @@
         android:minSdkVersion="21"
         android:targetSdkVersion="33" />
 
-    <!-- Bluetooth permissions -->
+    <!-- Bluetooth permissions ONLY -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-
-    <!-- Audio permissions -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-
-    <!-- USB permissions -->
-    <uses-permission android:name="android.permission.USB_PERMISSION" />
-
-    <!-- Other -->
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.INTERNET" />
 
     <permission
         android:name="com.example.bleheadphones.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
@@ -49,11 +38,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- USB device handling -->
-        <meta-data
-            android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
-            android:resource="@xml/device_filter" />
 
         <provider
             android:name="androidx.startup.InitializationProvider"

@@ -3012,6 +3012,8 @@ id beginning
 id blocking
 id bottom
 id bounce
+id bt_off_button
+id bt_on_button
 id buttonPanel
 id cancel_button
 id center
@@ -3025,6 +3027,7 @@ id checkbox
 id checked
 id chronometer
 id circle_center
+id clear_button
 id clear_text
 id clip_horizontal
 id clip_vertical
@@ -3138,6 +3141,7 @@ id line3
 id linear
 id listMode
 id list_item
+id log_text
 id m3_side_sheet
 id marquee
 id masked
@@ -3490,6 +3494,7 @@ layout abc_search_view
 layout abc_select_dialog_material
 layout abc_tooltip
 layout activity_main
+layout activity_test
 layout custom_dialog
 layout design_bottom_navigation_item
 layout design_bottom_sheet_dialog

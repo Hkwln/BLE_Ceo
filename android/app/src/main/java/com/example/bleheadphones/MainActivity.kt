@@ -1,18 +1,14 @@
 package com.example.bleheadphones
 
 import android.Manifest
-import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import android.util.Log
 import android.widget.Button
 import android.widget.ScrollView
@@ -38,10 +34,10 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.clear_button).setOnClickListener { logText?.text = "" }
 
         log("════════════════════════════════════════")
-        log("BLE Scanner v6.0 - NO Location Needed")
+        log("BLE Scanner v6.1 - With Location")
         log("════════════════════════════════════════")
 
-        requestBTPermissions()
+        requestAllPermissions()
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
@@ -64,13 +60,13 @@ class MainActivity : AppCompatActivity() {
         }
         
         if (bluetoothAdapter?.isEnabled!!) {
-            log("✅ Bluetooth is ON - ready to scan!")
+            log("✅ Bluetooth is ON")
         } else {
             log("❌ Bluetooth is OFF")
         }
     }
 
-    private fun requestBTPermissions() {
+    private fun requestAllPermissions() {
         val needed = mutableListOf<String>()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -82,18 +78,22 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+
         if (needed.isNotEmpty()) {
-            log("🔐 Requesting Bluetooth permissions...")
+            log("🔐 Requesting permissions...")
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), 42)
         } else {
-            log("✅ Bluetooth permissions OK")
+            log("✅ Permissions OK")
         }
     }
 
     override fun onRequestPermissionsResult(rq: Int, perms: Array<String>, grants: IntArray) {
         super.onRequestPermissionsResult(rq, perms, grants)
         if (rq == 42) {
-            log("✅ Permission dialog closed")
+            log("✅ Permission request done")
         }
     }
 
@@ -108,7 +108,7 @@ class MainActivity : AppCompatActivity() {
         log("════════════════════════════════════════")
 
         if (!bluetoothAdapter?.isEnabled!!) {
-            log("❌ Bluetooth OFF - turn it on!")
+            log("❌ Bluetooth OFF")
             return
         }
 
@@ -128,7 +128,7 @@ class MainActivity : AppCompatActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
                     bluetoothAdapter?.startLeScan(callback)
-                    log("✅ Scan started (Android 12+)")
+                    log("✅ Scan started")
                 } else {
                     log("❌ BLUETOOTH_SCAN permission denied")
                     isScanning = false
@@ -136,7 +136,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 bluetoothAdapter?.startLeScan(callback)
-                log("✅ Scan started (pre-Android 12)")
+                log("✅ Scan started")
             }
 
             handler.postDelayed({

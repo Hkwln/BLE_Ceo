@@ -1,8 +1,9 @@
 #include <Arduino.h>
-#include <BluetoothA2DPSink.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 #include <driver/i2s.h>
-#include <USB.h>
-#include <USBCDC.h>
 
 // ============================================================================
 // PIN DEFINITIONS - Seeed XIAO ESP32-S3 + MAX98357A (x2 for stereo)
@@ -19,17 +20,17 @@
 #define I2S_DIN_RIGHT  GPIO_NUM_5   // Data In
 
 // ============================================================================
+// BLE UUIDs
+// ============================================================================
+#define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
+// ============================================================================
 // GLOBALS
 // ============================================================================
-
-BluetoothA2DPSink a2dp_sink;
-USBCDC SerialUSB;
-
-bool usb_phone_connected = false;
-bool ble_active = true;
-bool usb_audio_ready = false;
-unsigned long usb_handshake_time = 0;
-const unsigned long USB_HANDSHAKE_TIMEOUT = 2000; // 2 seconds to get ACK
+bool deviceConnected = false;
+bool oldDeviceConnected = false;
+BLECharacteristic* pCharacteristic = nullptr;
 
 // ============================================================================
 // I2S SETUP
@@ -49,14 +50,20 @@ void setupI2S() {
     .use_apll = false,
   };
 
-  i2s_driver_install(I2S_NUM_0, &i2s_config_left, 0, NULL);
-  
+  // Install LEFT channel
+  esp_err_t err = i2s_driver_install(I2S_NUM_0, &i2s_config_left, 0, NULL);
+  if (err != ESP_OK) {
+    Serial.printf("[I2S] Failed to install LEFT driver: %s\n", esp_err_to_name(err));
+  }
+
+  // Pin configuration for LEFT
   i2s_pin_config_t pin_config_left = {
     .bck_io_num = I2S_BCK_LEFT,
     .ws_io_num = I2S_WS_LEFT,
     .data_out_num = I2S_DIN_LEFT,
-    .data_in_num = I2S_PIN_NO_CHANGE,
+    .data_in_num = -1,
   };
+
   i2s_set_pin(I2S_NUM_0, &pin_config_left);
 
   // I2S configuration for RIGHT channel
@@ -72,103 +79,60 @@ void setupI2S() {
     .use_apll = false,
   };
 
-  i2s_driver_install(I2S_NUM_1, &i2s_config_right, 0, NULL);
-  
+  // Install RIGHT channel
+  err = i2s_driver_install(I2S_NUM_1, &i2s_config_right, 0, NULL);
+  if (err != ESP_OK) {
+    Serial.printf("[I2S] Failed to install RIGHT driver: %s\n", esp_err_to_name(err));
+  }
+
+  // Pin configuration for RIGHT
   i2s_pin_config_t pin_config_right = {
     .bck_io_num = I2S_BCK_RIGHT,
     .ws_io_num = I2S_WS_RIGHT,
     .data_out_num = I2S_DIN_RIGHT,
-    .data_in_num = I2S_PIN_NO_CHANGE,
+    .data_in_num = -1,
   };
+
   i2s_set_pin(I2S_NUM_1, &pin_config_right);
 
-  Serial.println("[I2S] Initialized stereo (two MAX98357A boards)");
+  Serial.println("[I2S] ✅ I2S initialized for stereo (LEFT + RIGHT channels)");
 }
 
 // ============================================================================
-// BLE A2DP CALLBACKS
+// BLE CALLBACKS
 // ============================================================================
 
-void audio_data_callback(const uint8_t *data, uint32_t len) {
-  // Only process BLE audio if BLE is active and USB phone is NOT connected
-  if (!ble_active || usb_phone_connected) return;
-
-  size_t bytes_written = 0;
-
-  // Write to both I2S ports simultaneously
-  i2s_write(I2S_NUM_0, data, len, &bytes_written, portMAX_DELAY);
-  i2s_write(I2S_NUM_1, data, len, &bytes_written, portMAX_DELAY);
-
-  // Serial.printf("[BLE] Audio data: %d bytes\n", len);
-}
-
-void connection_state_changed(esp_a2d_connection_state_t state, void *ptr) {
-  if (state == ESP_A2D_CONNECTION_STATE_CONNECTED) {
-    Serial.println("[BLE] Connected to Android device");
-    ble_active = true;
-  } else if (state == ESP_A2D_CONNECTION_STATE_DISCONNECTED) {
-    Serial.println("[BLE] Disconnected from Android device");
-    ble_active = false;
+class MyServerCallbacks: public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) {
+    deviceConnected = true;
+    Serial.println("[BLE] ✅ Device connected!");
+    BLEDevice::startAdvertising(); // Re-enable advertising for multiple connections
   }
-}
 
-// ============================================================================
-// USB SERIAL HANDLING
-// ============================================================================
+  void onDisconnect(BLEServer* pServer) {
+    deviceConnected = false;
+    Serial.println("[BLE] ❌ Device disconnected. Restarting advertising...");
+    BLEDevice::startAdvertising();
+  }
+};
 
-void handleUSBHandshake() {
-  if (SerialUSB.available() > 0) {
-    String incoming = SerialUSB.readStringUntil('\n');
-    incoming.trim();
-
-    if (incoming == "USB_AUDIO_MODE_ACK") {
-      Serial.println("[USB] Handshake successful! Switching to USB audio mode");
-      usb_phone_connected = true;
-      usb_audio_ready = true;
-      ble_active = false;
+class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    std::string value = pCharacteristic->getValue();
+    
+    if (value.length() > 0) {
+      Serial.print("[BLE] Received: ");
+      for (int i = 0; i < value.length(); i++) {
+        Serial.print(value[i]);
+      }
+      Serial.println();
     }
   }
 
-  // Timeout check
-  if (!usb_audio_ready && (millis() - usb_handshake_time) > USB_HANDSHAKE_TIMEOUT) {
-    Serial.println("[USB] Handshake timeout. Assuming power adapter, staying on BLE");
-    usb_handshake_time = millis(); // Reset to avoid repeated messages
+  void onRead(BLECharacteristic *pCharacteristic) {
+    Serial.println("[BLE] Characteristic read");
   }
-}
-
-void processUSBPCM() {
-  // Read incoming USB PCM data and send to I2S
-  if (SerialUSB.available() > 0) {
-    uint8_t buffer[512];
-    int bytes_read = SerialUSB.readBytes(buffer, sizeof(buffer));
-    
-    size_t bytes_written = 0;
-    i2s_write(I2S_NUM_0, buffer, bytes_read, &bytes_written, portMAX_DELAY);
-    i2s_write(I2S_NUM_1, buffer, bytes_read, &bytes_written, portMAX_DELAY);
-
-    // Serial.printf("[USB] PCM data: %d bytes\n", bytes_read);
-  }
-}
-
-void detectUSBConnection() {
-  // Check if USB is enumerated (D+ pulled high)
-  bool usb_detected = SerialUSB.availableForWrite() > 0;
-
-  if (usb_detected && !usb_phone_connected && !usb_audio_ready) {
-    // USB just connected, start handshake
-    Serial.println("[USB] USB detected! Sending handshake...");
-    SerialUSB.println("USB_AUDIO_MODE_READY");
-    usb_handshake_time = millis();
-  }
-
-  if (!usb_detected && usb_phone_connected) {
-    // USB disconnected, back to BLE
-    Serial.println("[USB] USB disconnected! Switching back to BLE");
-    usb_phone_connected = false;
-    usb_audio_ready = false;
-    ble_active = true;
-  }
-}
+};
 
 // ============================================================================
 // SETUP
@@ -178,39 +142,87 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   
-  Serial.println("\n\n=== BLE Headphones Project ===");
-  Serial.println("Seeed XIAO ESP32-S3 + MAX98357A (Stereo)");
-  Serial.println("BLE A2DP + USB Serial Audio");
+  Serial.println("\n\n===========================================");
+  Serial.println("[Setup] Starting BLE Headphones System...");
+  Serial.println("===========================================\n");
 
-  // Setup I2S
+  // Initialize I2S
   setupI2S();
 
-  // Setup BLE A2DP
-  a2dp_sink.set_on_data_received_callback(audio_data_callback);
-  a2dp_sink.set_on_connection_state_changed_callback(connection_state_changed);
-  a2dp_sink.start("BLE-Headphones");
+  // 1. Initialize BLE Device
+  BLEDevice::init("BLE-Headphones");
+  Serial.println("[BLE] ✅ BLE Device initialized as 'BLE-Headphones'");
 
-  // Setup USB Serial
-  SerialUSB.begin(115200);
+  // 2. Create BLE Server
+  BLEServer *pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+  Serial.println("[BLE] ✅ BLE Server created");
 
-  Serial.println("[SYSTEM] Ready. Waiting for BLE or USB connection...");
+  // 3. Create BLE Service
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+  Serial.println("[BLE] ✅ BLE Service created");
+
+  // 4. Create BLE Characteristic
+  pCharacteristic = pService->createCharacteristic(
+    CHARACTERISTIC_UUID,
+    BLECharacteristic::PROPERTY_READ |
+    BLECharacteristic::PROPERTY_WRITE |
+    BLECharacteristic::PROPERTY_NOTIFY
+  );
+
+  pCharacteristic->addDescriptor(new BLE2902());
+  pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
+  pCharacteristic->setValue("BLE-Headphones Ready");
+  Serial.println("[BLE] ✅ BLE Characteristic created");
+
+  // 5. Start Service
+  pService->start();
+  Serial.println("[BLE] ✅ BLE Service started");
+
+  // 6. Configure Advertising
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->setScanResponse(true);
+  pAdvertising->setMinPreferred(0x06);
+  pAdvertising->setMaxPreferred(0x12);
+  Serial.println("[BLE] ✅ Advertising configured");
+
+  // 7. Start Advertising
+  BLEDevice::startAdvertising();
+  Serial.println("[BLE] ✅ Advertising started\n");
+
+  Serial.println("===========================================");
+  Serial.println("[Status] ✅ System ready!");
+  Serial.println("[Status] Waiting for Android app to connect...");
+  Serial.println("===========================================\n");
 }
 
 // ============================================================================
-// MAIN LOOP
+// LOOP
 // ============================================================================
 
 void loop() {
-  detectUSBConnection();
-
-  if (usb_audio_ready) {
-    // USB phone is connected and ready for audio
-    handleUSBHandshake();  // Still monitor for ACK retries or disconnection
-    processUSBPCM();       // Read and process USB PCM data
-  } else if (usb_phone_connected) {
-    // Waiting for handshake acknowledgment
-    handleUSBHandshake();
+  // Notify connected clients if needed
+  if (deviceConnected && !oldDeviceConnected) {
+    Serial.println("[BLE] Device just connected - updating advertising");
+    oldDeviceConnected = deviceConnected;
   }
 
-  delay(10); // Small delay to prevent watchdog issues
+  if (!deviceConnected && oldDeviceConnected) {
+    Serial.println("[BLE] Device just disconnected");
+    oldDeviceConnected = deviceConnected;
+  }
+
+  // Send test data every 2 seconds if connected
+  if (deviceConnected) {
+    static unsigned long lastSend = 0;
+    if (millis() - lastSend > 2000) {
+      lastSend = millis();
+      pCharacteristic->setValue("Heartbeat: " + String(millis()));
+      pCharacteristic->notify();
+      Serial.println("[BLE] Sent heartbeat notification");
+    }
+  }
+
+  delay(1000);
 }

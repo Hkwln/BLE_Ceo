@@ -14,6 +14,10 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <!-- Location - REQUIRED for BLE scanning on Android 6+ -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- Audio capture (for YouTube/System Audio) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 

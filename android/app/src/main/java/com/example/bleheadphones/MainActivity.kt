@@ -104,9 +104,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        // Need RECORD_AUDIO for system audio capture
+        // Need RECORD_AUDIO + Location for BLE scanning
         val requiredPermissions = buildList {
             add(Manifest.permission.RECORD_AUDIO)
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(Manifest.permission.BLUETOOTH_SCAN)
                 add(Manifest.permission.BLUETOOTH_CONNECT)
@@ -118,7 +119,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (missingPermissions.isNotEmpty()) {
-            log("🔐 Requesting permissions...")
+            log("🔐 Requesting permissions:")
+            missingPermissions.forEach { perm ->
+                log("   - ${perm.split(".").last()}")
+            }
             ActivityCompat.requestPermissions(
                 this,
                 missingPermissions.toTypedArray(),

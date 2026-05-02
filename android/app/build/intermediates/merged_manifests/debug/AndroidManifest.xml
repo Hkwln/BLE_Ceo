@@ -8,11 +8,14 @@
         android:minSdkVersion="21"
         android:targetSdkVersion="33" />
 
-    <!-- ONLY Bluetooth Permissions - No Location, No Microphone -->
+    <!-- Bluetooth permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Audio capture (for YouTube/System Audio) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <permission
         android:name="com.example.bleheadphones.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"

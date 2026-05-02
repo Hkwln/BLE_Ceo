@@ -8,7 +8,13 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -22,8 +28,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.util.UUID
-import kotlin.math.sin
-import kotlin.math.PI
 
 class MainActivity : AppCompatActivity() {
 
@@ -33,20 +37,24 @@ class MainActivity : AppCompatActivity() {
     private var isScanning = false
     private val handler = Handler(Looper.getMainLooper())
     private val REQUEST_PERMISSIONS = 999
+    private val REQUEST_MEDIA_PROJECTION = 1001
     
     private var connectedDevice: BluetoothDevice? = null
     private var bluetoothGatt: BluetoothGatt? = null
     private var dataCharacteristic: BluetoothGattCharacteristic? = null
     
-    // Audio Test Generator
+    // Audio Capture
+    private var audioRecord: AudioRecord? = null
     private var isStreamingAudio = false
     private var audioThread: Thread? = null
+    private var mediaProjectionManager: MediaProjectionManager? = null
     
     private val SERVICE_UUID = UUID.fromString("4fafc201-1fb5-459e-8fcc-c5c9c331914b")
     private val CHAR_UUID = UUID.fromString("beb5483e-36e1-4688-b7f5-ea07361b26a8")
     
     private val SAMPLE_RATE = 44100
-    private var sampleCounter = 0L
+    private val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_STEREO
+    private val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,9 +67,12 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.disconnect_button).setOnClickListener { disconnect() }
 
         log("════════════════════════════════════════")
-        log("BLE Headphones - v11.0")
-        log("NO PERMISSIONS NEEDED ✨")
+        log("BLE Headphones - v12.0")
+        log("YouTube Audio Capture Mode")
         log("════════════════════════════════════════")
+
+        // Get MediaProjectionManager for system audio capture
+        mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
@@ -93,8 +104,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        // ONLY Bluetooth permissions - NO Location, NO Microphone!
+        // Need RECORD_AUDIO for system audio capture
         val requiredPermissions = buildList {
+            add(Manifest.permission.RECORD_AUDIO)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(Manifest.permission.BLUETOOTH_SCAN)
                 add(Manifest.permission.BLUETOOTH_CONNECT)
@@ -106,14 +118,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (missingPermissions.isNotEmpty()) {
-            log("🔐 Requesting Bluetooth permissions...")
+            log("🔐 Requesting permissions...")
             ActivityCompat.requestPermissions(
                 this,
                 missingPermissions.toTypedArray(),
                 REQUEST_PERMISSIONS
             )
         } else {
-            log("✅ Bluetooth permissions OK")
+            log("✅ All permissions OK")
         }
     }
 
@@ -126,6 +138,15 @@ class MainActivity : AppCompatActivity() {
         
         if (requestCode == REQUEST_PERMISSIONS) {
             log("✅ Permissions handled")
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        
+        if (requestCode == REQUEST_MEDIA_PROJECTION && resultCode == RESULT_OK && data != null) {
+            log("✅ Screen capture permission granted!")
+            // Permission granted - can now capture system audio
         }
     }
 
@@ -297,8 +318,11 @@ class MainActivity : AppCompatActivity() {
                     if (dataCharacteristic != null) {
                         log("✅ Found data characteristic!")
                         log("📊 Ready for audio streaming!")
-                        log("\n🔊 Starting TEST AUDIO generator...")
-                        startAudioStream()
+                        log("\n🎵 Starting YouTube audio capture...")
+                        
+                        // Request screen capture for system audio
+                        requestScreenCapture()
+                        
                     } else {
                         log("❌ Characteristic not found")
                     }
@@ -311,54 +335,112 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startAudioStream() {
+    private fun requestScreenCapture() {
+        log("📺 Requesting screen capture permission for audio...")
+        
+        // This triggers the system dialog to allow audio capture
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val intent = mediaProjectionManager?.createScreenCaptureIntent()
+            if (intent != null) {
+                startActivityForResult(intent, REQUEST_MEDIA_PROJECTION)
+            }
+        } else {
+            // Fallback for older Android
+            startAudioStream(null)
+        }
+    }
+
+    private fun startAudioStream(mediaProjection: android.media.projection.MediaProjection? = null) {
         if (isStreamingAudio) return
         
+        // Check RECORD_AUDIO permission
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            log("❌ RECORD_AUDIO permission denied!")
+            return
+        }
+        
         isStreamingAudio = true
-        sampleCounter = 0L
-        log("🎵 Generating 1kHz test tone (sine wave)...")
-        log("📤 Streaming to ESP32...")
+        log("🎤 Initializing system audio capture...")
 
-        // Start streaming in background thread
-        audioThread = Thread {
-            var chunksLogged = 0
-            
-            while (isStreamingAudio && dataCharacteristic != null && bluetoothGatt != null) {
-                try {
-                    // Generate test audio: 1kHz sine wave
-                    val buffer = ByteArray(1024)
-                    
-                    for (i in 0 until 512) {  // 512 samples = 256 samples per channel (stereo)
-                        // 1kHz sine wave at 44.1kHz
-                        val phase = (2.0 * PI * 1000.0 * sampleCounter) / SAMPLE_RATE
-                        val sample = (sin(phase) * 32000).toInt().toShort()
-                        sampleCounter++
+        try {
+            val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+            log("📊 Buffer size: $bufferSize bytes")
+
+            // Try to capture system audio (works on Android 10+)
+            audioRecord = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && mediaProjection != null) {
+                val config = android.media.AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
+                    .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                    .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                    .build()
+
+                AudioRecord.Builder()
+                    .setAudioSource(MediaRecorder.AudioSource.DEFAULT)
+                    .setAudioFormat(AudioFormat.Builder()
+                        .setEncoding(AUDIO_FORMAT)
+                        .setSampleRate(SAMPLE_RATE)
+                        .setChannelMask(CHANNEL_CONFIG)
+                        .build())
+                    .setBufferSizeInBytes(bufferSize * 2)
+                    .setAudioPlaybackCaptureConfig(config)
+                    .build()
+            } else {
+                // Fallback: capture microphone (less ideal but works without screen capture)
+                AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    SAMPLE_RATE,
+                    CHANNEL_CONFIG,
+                    AUDIO_FORMAT,
+                    bufferSize * 2
+                )
+            }
+
+            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                log("❌ AudioRecord initialization FAILED!")
+                isStreamingAudio = false
+                return
+            }
+
+            audioRecord?.startRecording()
+            log("✅ Audio recording started!")
+            log("🔊 Streaming YouTube audio to BLE device...")
+            log("📱 Play YouTube video on your phone now!")
+
+            // Start streaming in background thread
+            audioThread = Thread {
+                val buffer = ByteArray(1024)
+                var chunksLogged = 0
+                
+                while (isStreamingAudio && audioRecord != null) {
+                    try {
+                        val bytesRead = audioRecord!!.read(buffer, 0, buffer.size)
                         
-                        // Store as 16-bit little-endian
-                        buffer[i * 2] = (sample.toInt() and 0xFF).toByte()
-                        buffer[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
-                    }
-                    
-                    // Send to BLE device
-                    sendAudioData(buffer)
-                    
-                    chunksLogged++
-                    if (chunksLogged % 50 == 0) {
-                        runOnUiThread {
-                            log("🔊 Streamed $chunksLogged chunks (~${chunksLogged}KB)")
+                        if (bytesRead > 0) {
+                            // Send to BLE device
+                            sendAudioData(buffer.copyOf(bytesRead))
+                            
+                            chunksLogged++
+                            if (chunksLogged % 50 == 0) {
+                                runOnUiThread {
+                                    log("🔊 Streamed $chunksLogged chunks")
+                                }
+                            }
                         }
+                    } catch (e: Exception) {
+                        log("❌ Audio read error: ${e.message}")
+                        break
                     }
-                    
-                    // Sleep a bit to avoid flooding
-                    Thread.sleep(20)  // 50 chunks per second
-                    
-                } catch (e: Exception) {
-                    log("❌ Audio generation error: ${e.message}")
-                    break
                 }
             }
+            audioThread?.start()
+
+        } catch (e: Exception) {
+            log("❌ Audio error: ${e.message}")
+            isStreamingAudio = false
         }
-        audioThread?.start()
     }
 
     private fun sendAudioData(data: ByteArray) {
@@ -399,6 +481,9 @@ class MainActivity : AppCompatActivity() {
         log("🛑 Stopping audio stream...")
 
         try {
+            audioRecord?.stop()
+            audioRecord?.release()
+            audioRecord = null
             audioThread?.join(1000)
             log("✅ Audio stream stopped")
         } catch (e: Exception) {

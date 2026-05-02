@@ -218,7 +218,10 @@ void loop() {
     static unsigned long lastSend = 0;
     if (millis() - lastSend > 2000) {
       lastSend = millis();
-      pCharacteristic->setValue("Heartbeat: " + String(millis()));
+      
+      // Create message and convert to std::string
+      String msg = "Heartbeat: " + String(millis());
+      pCharacteristic->setValue(msg.c_str());
       pCharacteristic->notify();
       Serial.println("[BLE] Sent heartbeat notification");
     }

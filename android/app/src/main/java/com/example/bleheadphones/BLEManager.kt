@@ -1,36 +1,43 @@
 package com.example.bleheadphones
 
+import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
+import android.bluetooth.le.ScanSettings
 import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.util.Log
 
 class BLEManager(val context: Context, val bluetoothAdapter: BluetoothAdapter?) {
 
-    private var scanCallback: ((BluetoothDevice) -> Unit)? = null
-    private var bluetoothStateCallback: ((Boolean) -> Unit)? = null
+    private var scanCallback: ((List<BluetoothDevice>) -> Unit)? = null
+    private var deviceSelectedCallback: ((BluetoothDevice) -> Unit)? = null
     private var connectCallback: ((Boolean) -> Unit)? = null
+    
     private var connectedDevice: BluetoothDevice? = null
     private var isScanning = false
     private var leScanner: BluetoothLeScanner? = null
+    
+    private val discoveredDevices = mutableMapOf<String, BluetoothDevice>()
 
     private val leScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             super.onScanResult(callbackType, result)
             val device = result.device
-            val deviceName = device.name ?: "(no name)"
+            val deviceName = device.name ?: "Unknown"
             val rssi = result.rssi
-            Log.d("BLEManager", "📡 Found device: $deviceName (${device.address}) RSSI: $rssi dBm")
-
-            if (device.name == "BLE-Headphones") {
-                Log.d("BLEManager", "✅ Found TARGET device!")
-                stopScan()
-                scanCallback?.invoke(device)
-            }
+            
+            Log.d("BLEManager", "📡 Found: $deviceName (${device.address}) RSSI: $rssi dBm")
+            
+            // Store device
+            discoveredDevices[device.address] = device
+            
+            // Notify UI of all discovered devices
+            scanCallback?.invoke(discoveredDevices.values.toList())
         }
 
         override fun onScanFailed(errorCode: Int) {
@@ -44,70 +51,96 @@ class BLEManager(val context: Context, val bluetoothAdapter: BluetoothAdapter?) 
                 else -> "Unknown error"
             }
             Log.e("BLEManager", "❌ Scan failed: $errorMsg (code: $errorCode)")
-            connectCallback?.invoke(false)
         }
     }
 
-    fun startScan(targetName: String, onDeviceFound: (BluetoothDevice) -> Unit) {
+    fun isBluetoothEnabled(): Boolean {
+        return bluetoothAdapter?.isEnabled ?: false
+    }
+
+    fun enableBluetooth() {
+        try {
+            bluetoothAdapter?.enable()
+            Log.d("BLEManager", "Bluetooth enable requested")
+        } catch (e: Exception) {
+            Log.e("BLEManager", "Error enabling Bluetooth: ${e.message}")
+        }
+    }
+
+    fun disableBluetooth() {
+        try {
+            bluetoothAdapter?.disable()
+            Log.d("BLEManager", "Bluetooth disabled")
+        } catch (e: Exception) {
+            Log.e("BLEManager", "Error disabling Bluetooth: ${e.message}")
+        }
+    }
+
+    fun getBluetoothState(): String {
+        return when(bluetoothAdapter?.state) {
+            BluetoothAdapter.STATE_ON -> "ON"
+            BluetoothAdapter.STATE_OFF -> "OFF"
+            BluetoothAdapter.STATE_TURNING_ON -> "TURNING_ON"
+            BluetoothAdapter.STATE_TURNING_OFF -> "TURNING_OFF"
+            else -> "UNKNOWN"
+        }
+    }
+
+    fun startScan(onDevicesFound: (List<BluetoothDevice>) -> Unit) {
         if (isScanning) {
             Log.w("BLEManager", "Already scanning, ignoring request")
             return
         }
 
-        scanCallback = onDeviceFound
-        Log.d("BLEManager", "=== Starting BLE Scan for '$targetName' ===")
+        scanCallback = onDevicesFound
+        discoveredDevices.clear()
+        Log.d("BLEManager", "=== Starting BLE Scan ===")
 
-        // First check if device is already paired
-        val pairedDevices = bluetoothAdapter?.bondedDevices ?: emptySet()
-        val targetDevice = pairedDevices.firstOrNull { it.name == targetName }
-
-        if (targetDevice != null) {
-            Log.d("BLEManager", "🔐 Device already paired: $targetName (${targetDevice.address})")
-            onDeviceFound(targetDevice)
+        // Check if Bluetooth is enabled
+        if (!isBluetoothEnabled()) {
+            Log.e("BLEManager", "❌ Bluetooth is OFF!")
             return
         }
 
-        Log.d("BLEManager", "Paired devices: ${pairedDevices.size}")
-        pairedDevices.forEach {
-            Log.d("BLEManager", "  - ${it.name} (${it.address})")
-        }
-
-        // Start BLE scanning
         try {
-            if (!isBluetoothEnabled()) {
-                Log.e("BLEManager", "❌ Bluetooth is OFF!")
-                return
-            }
-
             leScanner = bluetoothAdapter?.bluetoothLeScanner
             if (leScanner == null) {
                 Log.e("BLEManager", "❌ BluetoothLeScanner is null")
                 return
             }
 
-            leScanner?.startScan(leScanCallback)
+            // Configure scan settings for BLE Low Energy
+            val scanSettings = ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                .build()
+
+            // Start scan with settings
+            leScanner?.startScan(null, scanSettings, leScanCallback)
             isScanning = true
-            Log.d("BLEManager", "🔍 Scanning started... (will timeout in 30s)")
+            Log.d("BLEManager", "🔍 BLE Scan started (Low Energy mode)")
 
             // Auto-stop after 30 seconds
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 if (isScanning) {
-                    Log.w("BLEManager", "⏰ Scan timeout - no device found in 30 seconds")
+                    Log.w("BLEManager", "⏰ Scan timeout - stopping after 30 seconds")
                     stopScan()
                 }
             }, 30000)
+
         } catch (e: Exception) {
             Log.e("BLEManager", "❌ Failed to start scan: ${e.message}", e)
             isScanning = false
         }
     }
 
-    private fun stopScan() {
+    fun stopScan() {
         if (isScanning) {
             try {
                 leScanner?.stopScan(leScanCallback)
                 isScanning = false
-                Log.d("BLEManager", "Stopped BLE scan")
+                Log.d("BLEManager", "🛑 BLE Scan stopped")
+                Log.d("BLEManager", "📊 Total devices found: ${discoveredDevices.size}")
             } catch (e: Exception) {
                 Log.e("BLEManager", "Failed to stop scan: ${e.message}")
             }
@@ -119,9 +152,9 @@ class BLEManager(val context: Context, val bluetoothAdapter: BluetoothAdapter?) 
         connectedDevice = device
 
         try {
-            // For this demo, just assume connection succeeds
-            // In production, would use BluetoothSocket or BluetoothProfile
-            Log.d("BLEManager", "Connecting to: ${device.name}")
+            Log.d("BLEManager", "Connecting to: ${device.name} (${device.address})")
+            // In real implementation, would use BluetoothGatt
+            // For now, just indicate success
             onConnected(true)
         } catch (e: Exception) {
             Log.e("BLEManager", "Connection failed: ${e.message}")
@@ -132,38 +165,15 @@ class BLEManager(val context: Context, val bluetoothAdapter: BluetoothAdapter?) 
     fun disconnect() {
         stopScan()
         connectedDevice = null
+        discoveredDevices.clear()
         Log.d("BLEManager", "Disconnected")
     }
 
-    fun isBluetoothEnabled(): Boolean {
-        return bluetoothAdapter?.isEnabled ?: false
+    fun getDiscoveredDevices(): List<BluetoothDevice> {
+        return discoveredDevices.values.toList()
     }
 
-    fun enableBluetooth() {
-        try {
-            bluetoothAdapter?.enable()
-            Log.d("BLEManager", "Bluetooth enabled")
-        } catch (e: Exception) {
-            Log.e("BLEManager", "Failed to enable Bluetooth: ${e.message}")
-        }
-    }
-
-    fun disableBluetooth() {
-        try {
-            bluetoothAdapter?.disable()
-            Log.d("BLEManager", "Bluetooth disabled")
-        } catch (e: Exception) {
-            Log.e("BLEManager", "Failed to disable Bluetooth: ${e.message}")
-        }
-    }
-
-    fun getBluetoothState(): String {
-        return when (bluetoothAdapter?.state) {
-            BluetoothAdapter.STATE_OFF -> "OFF"
-            BluetoothAdapter.STATE_ON -> "ON"
-            BluetoothAdapter.STATE_TURNING_ON -> "TURNING_ON"
-            BluetoothAdapter.STATE_TURNING_OFF -> "TURNING_OFF"
-            else -> "UNKNOWN"
-        }
+    fun isScanning(): Boolean {
+        return isScanning
     }
 }

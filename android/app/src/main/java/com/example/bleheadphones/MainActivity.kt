@@ -2,6 +2,7 @@ package com.example.bleheadphones
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -17,6 +18,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 
 class MainActivity : AppCompatActivity() {
 
@@ -26,8 +29,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var handshakeProtocol: HandshakeProtocol
 
     private var statusText: TextView? = null
-    private var connectButton: Button? = null
+    private var scanButton: Button? = null
     private var disconnectButton: Button? = null
+    private var devicesList: RecyclerView? = null
+    private var deviceAdapter: BLEDeviceAdapter? = null
     
     private var bluetoothReceiver: BroadcastReceiver? = null
     private var isWaitingForBluetoothEnable = false
@@ -52,14 +57,20 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         try {
-            // Hide ActionBar completely
             supportActionBar?.hide()
-            
             setContentView(R.layout.activity_main)
 
             statusText = findViewById(R.id.status_text)
-            connectButton = findViewById(R.id.connect_button)
+            scanButton = findViewById(R.id.scan_button)
             disconnectButton = findViewById(R.id.disconnect_button)
+            devicesList = findViewById(R.id.devices_list)
+
+            // Setup RecyclerView
+            devicesList?.layoutManager = LinearLayoutManager(this)
+            deviceAdapter = BLEDeviceAdapter(emptyList()) { device ->
+                onDeviceSelected(device)
+            }
+            devicesList?.adapter = deviceAdapter
 
             // Request permissions
             requestPermissions()
@@ -77,11 +88,11 @@ class MainActivity : AppCompatActivity() {
             if (!bleManager.isBluetoothEnabled()) {
                 updateStatus("Bluetooth is OFF")
             } else {
-                updateStatus("Bluetooth is ON")
+                updateStatus("✅ Bluetooth is ON")
             }
 
             // Button listeners
-            connectButton?.setOnClickListener { scanForBLEDevice() }
+            scanButton?.setOnClickListener { scanForBLEDevices() }
             disconnectButton?.setOnClickListener { disconnect() }
 
             updateStatus("Ready")
@@ -104,18 +115,19 @@ class MainActivity : AppCompatActivity() {
                     when (state) {
                         BluetoothAdapter.STATE_ON -> {
                             Log.d("MainActivity", "Bluetooth turned ON")
-                            updateStatus("Bluetooth is ON")
+                            updateStatus("✅ Bluetooth is ON")
                             if (isWaitingForBluetoothEnable) {
                                 isWaitingForBluetoothEnable = false
-                                // Auto-start scan after Bluetooth is on
                                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                    startBLEScan()
+                                    if (bleManager.isBluetoothEnabled()) {
+                                        startBLEScan()
+                                    }
                                 }, 500)
                             }
                         }
                         BluetoothAdapter.STATE_OFF -> {
                             Log.d("MainActivity", "Bluetooth turned OFF")
-                            updateStatus("Bluetooth is OFF")
+                            updateStatus("❌ Bluetooth is OFF")
                         }
                     }
                 }
@@ -141,7 +153,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun scanForBLEDevice() {
+    private fun scanForBLEDevices() {
         // Check if Bluetooth is enabled
         if (!bleManager.isBluetoothEnabled()) {
             showBluetoothDialog()
@@ -152,22 +164,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startBLEScan() {
-        updateStatus("🔍 Scanning for BLE-Headphones...\n(Timeout: 30 seconds)")
+        updateStatus("🔍 Scanning for BLE devices...")
         Log.d("MainActivity", "Starting BLE scan")
 
-        bleManager.startScan("BLE-Headphones") { device ->
-            updateStatus("✅ Found device!\nConnecting to ${device.name}...")
-            Log.d("MainActivity", "Device found: ${device.name}")
+        bleManager.startScan { devices ->
+            updateStatus("📡 Found ${devices.size} device(s)")
+            deviceAdapter?.updateDevices(devices)
+            Log.d("MainActivity", "Found ${devices.size} devices")
+        }
+    }
 
-            bleManager.connectToDevice(device) { connected ->
-                if (connected) {
-                    updateStatus("✅ BLE Connected!\n${device.name}")
-                    Log.d("MainActivity", "BLE Connected!")
-                    handshakeProtocol.startAudioStream()
-                } else {
-                    updateStatus("❌ Connection failed")
-                    Log.e("MainActivity", "Connection failed")
-                }
+    private fun onDeviceSelected(device: BluetoothDevice) {
+        bleManager.stopScan()
+        updateStatus("✅ Connecting to ${device.name}...")
+        Log.d("MainActivity", "Device selected: ${device.name} (${device.address})")
+
+        bleManager.connectToDevice(device) { connected ->
+            if (connected) {
+                updateStatus("✅ BLE Connected!\n${device.name}")
+                Log.d("MainActivity", "BLE Connected!")
+                handshakeProtocol.startAudioStream()
+            } else {
+                updateStatus("❌ Connection failed")
+                Log.e("MainActivity", "Connection failed")
             }
         }
     }
@@ -175,7 +194,7 @@ class MainActivity : AppCompatActivity() {
     private fun showBluetoothDialog() {
         AlertDialog.Builder(this)
             .setTitle("Bluetooth ist aus")
-            .setMessage("Bluetooth muss aktiviert sein, um Geräte zu scannen. Jetzt aktivieren?")
+            .setMessage("Bluetooth muss aktiviert sein. Jetzt aktivieren?")
             .setPositiveButton("Ja") { _, _ ->
                 updateStatus("Bluetooth wird aktiviert...")
                 isWaitingForBluetoothEnable = true
@@ -227,6 +246,7 @@ class MainActivity : AppCompatActivity() {
             usbSerialManager.close()
             handshakeProtocol.stop()
             updateStatus("Disconnected")
+            deviceAdapter?.updateDevices(emptyList())
             Log.d("MainActivity", "Disconnected")
         } catch (e: Exception) {
             Log.e("MainActivity", "Error during disconnect: ${e.message}")

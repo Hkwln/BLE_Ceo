@@ -1,0 +1,62 @@
+[
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.example.bleheadphones.app-merged_res-29:/layout_activity_main.xml.flat",
+        "source": "com.example.bleheadphones.app-main-31:/layout/activity_main.xml"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/mipmap-hdpi/ic_launcher.png"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/mipmap-mdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/mipmap-mdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.example.bleheadphones.app-merged_res-29:/layout_device_card.xml.flat",
+        "source": "com.example.bleheadphones.app-main-31:/layout/device_card.xml"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/drawable_status_background.xml.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/drawable/status_background.xml"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/mipmap-xxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/layout_activity_main.xml.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/layout/activity_main.xml"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/mipmap-hdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/mipmap-xhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/mipmap-xxxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-merged_res-29:/xml_device_filter.xml.flat",
+        "source": "/home/openclaw-worker/.gradle/daemon/7.6/com.example.bleheadphones.app-main-31:/xml/device_filter.xml"
+    }
+]

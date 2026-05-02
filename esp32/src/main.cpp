@@ -214,7 +214,7 @@ void loop() {
   }
 
   // Send test data every 2 seconds if connected
-  if (deviceConnected) {
+  if (deviceConnected && pCharacteristic != nullptr) {
     static unsigned long lastSend = 0;
     if (millis() - lastSend > 2000) {
       lastSend = millis();

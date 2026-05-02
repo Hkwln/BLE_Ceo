@@ -8,15 +8,11 @@
         android:minSdkVersion="21"
         android:targetSdkVersion="33" />
 
-    <!-- Bluetooth permissions -->
+    <!-- ONLY Bluetooth Permissions - No Location, No Microphone -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-
-    <!-- Location - required for BLE on some Android versions -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <permission
         android:name="com.example.bleheadphones.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"

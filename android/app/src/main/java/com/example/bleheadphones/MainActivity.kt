@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -31,7 +32,7 @@ class MainActivity : AppCompatActivity() {
         logText = findViewById(R.id.log_text)
 
         log("════════════════════════════════════════")
-        log("BLE Test App - Simple Scan Mode")
+        log("BLE Test App v3.1 - Diagnostic Mode")
         log("════════════════════════════════════════")
 
         requestPermissions()
@@ -45,12 +46,32 @@ class MainActivity : AppCompatActivity() {
         }
 
         log("✅ Bluetooth adapter found")
+        
+        // Check Android version
+        log("Android: API ${Build.VERSION.SDK_INT}")
+        
+        // Check Location Services
+        checkLocationServices()
+        
         checkState()
 
         findViewById<Button>(R.id.bt_on_button).setOnClickListener { turnBtOn() }
         findViewById<Button>(R.id.bt_off_button).setOnClickListener { turnBtOff() }
         findViewById<Button>(R.id.scan_button).setOnClickListener { doScan() }
         findViewById<Button>(R.id.clear_button).setOnClickListener { logText?.text = "" }
+    }
+
+    private fun checkLocationServices() {
+        val locMgr = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val gpsEnabled = locMgr.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        val networkEnabled = locMgr.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        
+        log("Location GPS: ${if(gpsEnabled) "✅" else "❌"}")
+        log("Location Network: ${if(networkEnabled) "✅" else "❌"}")
+        
+        if (!gpsEnabled && !networkEnabled) {
+            log("⚠️  Location Services OFF - BLE scan may fail!")
+        }
     }
 
     private fun requestPermissions() {
@@ -72,22 +93,34 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Location is CRITICAL for BLE scan on Android 6+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
 
         if (needed.isNotEmpty()) {
-            log("🔐 Requesting: ${needed.joinToString()}")
+            log("🔐 Requesting permissions:")
+            needed.forEach { log("   - $it") }
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), 100)
         } else {
-            log("✅ All permissions OK")
+            log("✅ All permissions granted")
         }
     }
 
     override fun onRequestPermissionsResult(rq: Int, perms: Array<String>, grants: IntArray) {
         super.onRequestPermissionsResult(rq, perms, grants)
         if (rq == 100) {
-            log("✅ Permissions resolved")
+            val missing = perms.filterIndexed { idx, _ -> 
+                grants.getOrNull(idx) != PackageManager.PERMISSION_GRANTED 
+            }
+            if (missing.isEmpty()) {
+                log("✅ All permissions GRANTED")
+            } else {
+                log("❌ Missing: ${missing.joinToString()}")
+            }
         }
     }
 
@@ -146,8 +179,14 @@ class MainActivity : AppCompatActivity() {
         log("🔍 SCAN START (10 seconds)")
         log("═══════════════════════════════════════")
 
+        // Pre-scan checks
         if (!bluetoothAdapter?.isEnabled!!) {
             log("❌ Bluetooth OFF!")
+            return
+        }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            log("❌ Location permission DENIED")
             return
         }
 
@@ -160,8 +199,10 @@ class MainActivity : AppCompatActivity() {
 
             val settings = android.bluetooth.le.ScanSettings.Builder()
                 .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .setMatchMode(android.bluetooth.le.ScanSettings.MATCH_MODE_AGGRESSIVE)
                 .build()
 
+            log("✅ Scanner ready, settings built")
             var count = 0
 
             scanCallback = object : android.bluetooth.le.ScanCallback() {
@@ -170,25 +211,34 @@ class MainActivity : AppCompatActivity() {
                         count++
                         val name = result.device?.name ?: "unknown"
                         val addr = result.device?.address ?: "?"
-                        log("   [$count] $name / $addr (RSSI: ${result.rssi})")
+                        val rssi = result.rssi
+                        log("   [$count] $name ($addr) RSSI:$rssi")
                     }
                 }
 
                 override fun onScanFailed(errorCode: Int) {
-                    log("❌ Scan error: $errorCode")
+                    val msg = when(errorCode) {
+                        1 -> "ALREADY_STARTED"
+                        2 -> "APP_REGISTRATION_FAILED"
+                        3 -> "INTERNAL_ERROR"
+                        4 -> "FEATURE_UNSUPPORTED"
+                        5 -> "OUT_OF_HARDWARE_RESOURCES"
+                        else -> "ERROR_$errorCode"
+                    }
+                    log("❌ Scan failed: $msg")
                 }
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                    log("❌ Missing BLUETOOTH_SCAN permission")
+                    log("❌ Missing BLUETOOTH_SCAN")
                     return
                 }
             }
 
             scanner.startScan(null, settings, scanCallback!!)
-            log("✅ Scanning started...")
-            updateStatus("🔍 Scanning")
+            log("✅ Scan STARTED")
+            updateStatus("🔍 Scanning...")
 
             Thread {
                 Thread.sleep(10000)
@@ -202,18 +252,20 @@ class MainActivity : AppCompatActivity() {
                             scanner.stopScan(scanCallback!!)
                         }
                         log("🛑 Scan stopped")
-                        log("📊 TOTAL: $count devices")
-                        log("═══════════════════════════════════════")
+                        log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                        log("📊 TOTAL FOUND: $count devices")
+                        log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                         updateStatus("Found: $count")
                     } catch (e: Exception) {
-                        log("❌ Stop error: ${e.message}")
+                        log("❌ Stop: ${e.message}")
                     }
                 }
             }.start()
 
+        } catch (e: SecurityException) {
+            log("❌ SecurityException: ${e.message}")
         } catch (e: Exception) {
-            log("❌ ${e.message}")
-            e.printStackTrace()
+            log("❌ Error: ${e.message}")
         }
     }
 

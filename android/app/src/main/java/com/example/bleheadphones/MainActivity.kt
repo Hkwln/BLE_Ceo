@@ -400,37 +400,17 @@ class MainActivity : AppCompatActivity() {
             val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
             log("Buffer size: $bufferSize")
 
-            audioRecord = if (Build.VERSION.SDK_INT >= 29 && mediaProjection != null) {
-                try {
-                    log("Trying AudioPlaybackCaptureConfiguration...")
-                    val config = android.media.AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
-                        .addMatchingUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                        .build()
-
-                    AudioRecord.Builder()
-                        .setAudioSource(MediaRecorder.AudioSource.DEFAULT)
-                        .setAudioFormat(
-                            AudioFormat.Builder()
-                                .setEncoding(AUDIO_FORMAT)
-                                .setSampleRate(SAMPLE_RATE)
-                                .setChannelMask(CHANNEL_CONFIG)
-                                .build()
-                        )
-                        .setBufferSizeInBytes(bufferSize * 2)
-                        .setAudioPlaybackCaptureConfig(config)
-                        .build()
-                } catch (e: Exception) {
-                    log("System audio failed: ${e.message}")
-                    log("Fallback to microphone")
-                    AudioRecord(
-                        MediaRecorder.AudioSource.MIC,
-                        SAMPLE_RATE,
-                        CHANNEL_CONFIG,
-                        AUDIO_FORMAT,
-                        bufferSize * 2
-                    )
-                }
-            } else {
+            audioRecord = try {
+                log("🎵 Trying VOICE_DOWNLINK (YouTube capture)...")
+                AudioRecord(
+                    MediaRecorder.AudioSource.VOICE_DOWNLINK,
+                    SAMPLE_RATE,
+                    CHANNEL_CONFIG,
+                    AUDIO_FORMAT,
+                    bufferSize * 2
+                )
+            } catch (e: Exception) {
+                log("VOICE_DOWNLINK not available: ${e.message}")
                 AudioRecord(
                     MediaRecorder.AudioSource.MIC,
                     SAMPLE_RATE,

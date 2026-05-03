@@ -4,6 +4,7 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include <driver/i2s.h>
+#include <freertos/queue.h>
 
 // ============================================================================
 // PIN DEFINITIONS - Seeed XIAO ESP32-S3 + MAX98357A (x2 for stereo)
@@ -28,12 +29,44 @@
 // GLOBALS
 // ============================================================================
 bool deviceConnected = false;
-bool oldDeviceConnected = false;
 BLECharacteristic* pCharacteristic = nullptr;
 BLEServer* pServer = nullptr;
 
 volatile uint32_t audioChunksReceived = 0;
 volatile uint32_t audioChunksPlayed = 0;
+
+// Audio queue for async processing
+QueueHandle_t audioQueue = nullptr;
+TaskHandle_t audioTaskHandle = nullptr;
+
+// ============================================================================
+// AUDIO TASK - Process audio data asynchronously
+// ============================================================================
+
+void audioProcessTask(void* pvParameters) {
+  const size_t QUEUE_ITEM_SIZE = 512;
+  uint8_t audioBuffer[QUEUE_ITEM_SIZE];
+  
+  while (true) {
+    if (xQueueReceive(audioQueue, audioBuffer, portMAX_DELAY)) {
+      if (deviceConnected) {
+        size_t bytesWritten = 0;
+        
+        // Write to LEFT channel
+        esp_err_t err1 = i2s_write(I2S_NUM_0, audioBuffer, QUEUE_ITEM_SIZE, &bytesWritten, 0);
+        
+        // Write to RIGHT channel (duplicate for stereo)
+        esp_err_t err2 = i2s_write(I2S_NUM_1, audioBuffer, QUEUE_ITEM_SIZE, &bytesWritten, 0);
+        
+        audioChunksPlayed++;
+        
+        if (err1 != ESP_OK || err2 != ESP_OK) {
+          Serial.printf("[I2S] Error writing: L=%d, R=%d\n", err1, err2);
+        }
+      }
+    }
+  }
+}
 
 // ============================================================================
 // BLE CALLBACKS
@@ -42,8 +75,10 @@ volatile uint32_t audioChunksPlayed = 0;
 class MyServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     deviceConnected = true;
+    audioChunksReceived = 0;
+    audioChunksPlayed = 0;
     Serial.println("\n[BLE] ✅ CLIENT CONNECTED!");
-    Serial.println("[BLE] 🎵 Ready to receive audio data!\n");
+    Serial.println("[BLE] 🎵 Ready to receive audio!\n");
   }
 
   void onDisconnect(BLEServer* pServer) {
@@ -60,32 +95,21 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
     if (value.length() > 0) {
       audioChunksReceived++;
       
-      // Convert to byte array
-      const uint8_t* audioData = (const uint8_t*)value.data();
-      size_t audioLen = value.length();
+      // Queue the audio data for async processing (non-blocking)
+      if (audioQueue != nullptr) {
+        uint8_t audioBuffer[512] = {0};
+        memcpy(audioBuffer, value.data(), minOf((size_t)512, value.length()));
+        
+        // Send to queue (don't wait if full)
+        xQueueSendToBackFromISR(audioQueue, audioBuffer, nullptr);
+      }
       
-      // Write stereo audio to I2S
-      // Split mono data into stereo (duplicate for both channels)
-      size_t bytesWritten = 0;
-      
-      // Send to LEFT channel (I2S_NUM_0)
-      i2s_write(I2S_NUM_0, audioData, audioLen, &bytesWritten, portMAX_DELAY);
-      
-      // Send to RIGHT channel (I2S_NUM_1) - same data for stereo
-      i2s_write(I2S_NUM_1, audioData, audioLen, &bytesWritten, portMAX_DELAY);
-      
-      audioChunksPlayed++;
-      
-      // Log every 100 chunks to avoid spam
+      // Log every 100 chunks
       if (audioChunksReceived % 100 == 0) {
-        Serial.printf("[Audio] 🔊 Chunks: Received=%lu, Played=%lu\n", 
+        Serial.printf("[Audio] 🔊 Recv: %lu, Play: %lu\n", 
                       audioChunksReceived, audioChunksPlayed);
       }
     }
-  }
-
-  void onRead(BLECharacteristic *pCharacteristic) {
-    Serial.println("[BLE] 📖 Characteristic read");
   }
 };
 
@@ -94,7 +118,7 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
 // ============================================================================
 
 void setupI2S() {
-  Serial.println("\n[I2S] 🔧 Starting I2S initialization...");
+  Serial.println("\n[I2S] 🔧 Starting I2S...");
   
   // LEFT CHANNEL (I2S_NUM_0)
   i2s_config_t i2s_config_left = {
@@ -104,17 +128,16 @@ void setupI2S() {
     .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
     .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_STAND_I2S),
     .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-    .dma_buf_count = 8,
-    .dma_buf_len = 64,
+    .dma_buf_count = 4,
+    .dma_buf_len = 512,
     .use_apll = false,
   };
 
   esp_err_t err = i2s_driver_install(I2S_NUM_0, &i2s_config_left, 0, NULL);
   if (err != ESP_OK) {
-    Serial.printf("[I2S] ❌ Failed to install LEFT driver: %s\n", esp_err_to_name(err));
+    Serial.printf("[I2S] ❌ LEFT driver failed: %s\n", esp_err_to_name(err));
     return;
   }
-  Serial.println("[I2S] ✅ LEFT driver installed");
 
   i2s_pin_config_t pin_config_left = {
     .bck_io_num = I2S_BCK_LEFT,
@@ -124,12 +147,8 @@ void setupI2S() {
   };
 
   err = i2s_set_pin(I2S_NUM_0, &pin_config_left);
-  if (err != ESP_OK) {
-    Serial.printf("[I2S] ❌ Failed to set LEFT pins: %s\n", esp_err_to_name(err));
-  } else {
-    Serial.println("[I2S] ✅ LEFT pins configured");
-    Serial.printf("[I2S]    BCK: GPIO%d, WS: GPIO%d, DIN: GPIO%d\n", 
-                  I2S_BCK_LEFT, I2S_WS_LEFT, I2S_DIN_LEFT);
+  if (err == ESP_OK) {
+    Serial.println("[I2S] ✅ LEFT configured");
   }
 
   // RIGHT CHANNEL (I2S_NUM_1)
@@ -140,17 +159,16 @@ void setupI2S() {
     .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT,
     .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_STAND_I2S),
     .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-    .dma_buf_count = 8,
-    .dma_buf_len = 64,
+    .dma_buf_count = 4,
+    .dma_buf_len = 512,
     .use_apll = false,
   };
 
   err = i2s_driver_install(I2S_NUM_1, &i2s_config_right, 0, NULL);
   if (err != ESP_OK) {
-    Serial.printf("[I2S] ❌ Failed to install RIGHT driver: %s\n", esp_err_to_name(err));
+    Serial.printf("[I2S] ❌ RIGHT driver failed: %s\n", esp_err_to_name(err));
     return;
   }
-  Serial.println("[I2S] ✅ RIGHT driver installed");
 
   i2s_pin_config_t pin_config_right = {
     .bck_io_num = I2S_BCK_RIGHT,
@@ -160,16 +178,11 @@ void setupI2S() {
   };
 
   err = i2s_set_pin(I2S_NUM_1, &pin_config_right);
-  if (err != ESP_OK) {
-    Serial.printf("[I2S] ❌ Failed to set RIGHT pins: %s\n", esp_err_to_name(err));
-  } else {
-    Serial.println("[I2S] ✅ RIGHT pins configured");
-    Serial.printf("[I2S]    BCK: GPIO%d, WS: GPIO%d, DIN: GPIO%d\n", 
-                  I2S_BCK_RIGHT, I2S_WS_RIGHT, I2S_DIN_RIGHT);
+  if (err == ESP_OK) {
+    Serial.println("[I2S] ✅ RIGHT configured");
   }
 
-  Serial.println("\n[I2S] ✅ STEREO I2S fully initialized!");
-  Serial.println("[I2S]    Ready to stream audio to MAX98357A amplifiers\n");
+  Serial.println("[I2S] ✅ Stereo I2S ready!\n");
 }
 
 // ============================================================================
@@ -182,45 +195,56 @@ void setup() {
   
   Serial.println("\n\n");
   Serial.println("╔════════════════════════════════════════════════════════╗");
-  Serial.println("║   BLE HEADPHONES AUDIO RECEIVER - v2.0                ║");
+  Serial.println("║   BLE HEADPHONES AUDIO RECEIVER - v3.0 (ASYNC)        ║");
   Serial.println("║   Seeed XIAO ESP32-S3 + MAX98357A x2 (Stereo)         ║");
   Serial.println("╚════════════════════════════════════════════════════════╝");
-  Serial.printf("[System] Starting up... (Time: %lu ms)\n\n", millis());
 
-  // Initialize I2S first (for audio output)
+  // Setup I2S
   setupI2S();
 
+  // Create audio processing queue
+  audioQueue = xQueueCreate(10, 512);
+  if (audioQueue == nullptr) {
+    Serial.println("[ERROR] Failed to create audio queue!");
+    while(1) delay(1000);
+  }
+  Serial.println("[Queue] ✅ Audio queue created");
+
+  // Create audio processing task
+  xTaskCreatePinnedToCore(
+    audioProcessTask,      // Task function
+    "AudioTask",           // Task name
+    4096,                  // Stack size
+    nullptr,               // Parameters
+    2,                     // Priority
+    &audioTaskHandle,      // Task handle
+    1                      // Core 1
+  );
+  Serial.println("[Task] ✅ Audio task running\n");
+
   // Initialize BLE Device
-  Serial.println("[BLE] 🔧 Initializing BLE as '" DEVICE_NAME "'...");
+  Serial.println("[BLE] 🔧 Initializing BLE...");
   BLEDevice::init(DEVICE_NAME);
-  Serial.println("[BLE] ✅ BLE Device initialized\n");
 
   // Create BLE Server
-  Serial.println("[BLE] 🔧 Creating BLE Server...");
   pServer = BLEDevice::createServer();
   if (pServer == nullptr) {
     Serial.println("[BLE] ❌ Failed to create server!");
     while(1) delay(1000);
   }
   pServer->setCallbacks(new MyServerCallbacks());
-  Serial.println("[BLE] ✅ BLE Server created\n");
 
   // Create BLE Service
-  Serial.println("[BLE] 🔧 Creating BLE Service...");
   BLEService *pService = pServer->createService(SERVICE_UUID);
   if (pService == nullptr) {
     Serial.println("[BLE] ❌ Failed to create service!");
     while(1) delay(1000);
   }
-  Serial.printf("[BLE] ✅ Service created\n\n");
 
   // Create BLE Characteristic
-  Serial.println("[BLE] 🔧 Creating BLE Characteristic (WRITE)...");
   pCharacteristic = pService->createCharacteristic(
     CHARACTERISTIC_UUID,
-    BLECharacteristic::PROPERTY_READ |
-    BLECharacteristic::PROPERTY_WRITE |
-    BLECharacteristic::PROPERTY_NOTIFY
+    BLECharacteristic::PROPERTY_WRITE
   );
   
   if (pCharacteristic == nullptr) {
@@ -228,37 +252,25 @@ void setup() {
     while(1) delay(1000);
   }
 
-  pCharacteristic->addDescriptor(new BLE2902());
   pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
-  pCharacteristic->setValue("Ready for audio");
-  Serial.println("[BLE] ✅ Characteristic created (ready to receive audio)\n");
-
-  // Start Service
-  Serial.println("[BLE] 🔧 Starting BLE Service...");
   pService->start();
-  Serial.println("[BLE] ✅ Service started\n");
 
   // Configure Advertising
-  Serial.println("[BLE] 🔧 Configuring BLE Advertising...");
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
   pAdvertising->setMinPreferred(0x06);
   pAdvertising->setMaxPreferred(0x12);
-  Serial.println("[BLE] ✅ Advertising configured\n");
 
   // Start Advertising
-  Serial.println("[BLE] 🚀 Starting BLE Advertising...");
   BLEDevice::startAdvertising();
   
-  Serial.println("[BLE] ✅ ADVERTISING STARTED!\n");
+  Serial.println("[BLE] ✅ BLE ADVERTISING STARTED!\n");
   Serial.println("╔════════════════════════════════════════════════════════╗");
-  Serial.println("║  🎯 ESP32 Ready! Waiting for Android app...            ║");
-  Serial.println("║  📱 Open Android app → Scan → Connect                  ║");
-  Serial.println("║  🎵 Audio will stream to MAX98357A speakers!           ║");
+  Serial.println("║  🎯 Ready! Open Android app and connect                ║");
+  Serial.println("║  📱 Scan → BLE-Headphones → Connect                    ║");
+  Serial.println("║  🎵 Play YouTube → Audio streams to speakers!          ║");
   Serial.println("╚════════════════════════════════════════════════════════╝\n");
-
-  Serial.printf("[System] Setup complete! Ready to receive audio.\n\n");
 }
 
 // ============================================================================
@@ -268,15 +280,14 @@ void setup() {
 void loop() {
   static unsigned long lastStatus = 0;
   
-  // Print status every 5 seconds
   if (millis() - lastStatus > 5000) {
     lastStatus = millis();
     
     if (deviceConnected) {
-      Serial.printf("[Status] ✅ CONNECTED - Received: %lu chunks, Played: %lu chunks\n", 
+      Serial.printf("[Status] ✅ Connected - Chunks: Recv=%lu, Play=%lu\n", 
                     audioChunksReceived, audioChunksPlayed);
     } else {
-      Serial.printf("[Status] ⏳ Waiting for connection... (Uptime: %lu ms)\n", millis());
+      Serial.printf("[Status] ⏳ Waiting for connection...\n");
     }
   }
 

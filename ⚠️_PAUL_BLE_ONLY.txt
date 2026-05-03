@@ -1,0 +1,27 @@
+⚠️ CRITICAL PROJECT CONSTRAINT ⚠️
+
+════════════════════════════════════════════════════════
+  PAUL'S REQUIREMENT - NEVER DEVIATE!
+════════════════════════════════════════════════════════
+
+❌ NO CLASSIC BLUETOOTH - EVER!
+❌ NO BT CLASSIC - EVER!
+❌ NO BR/EDR (Bluetooth Classic)
+❌ NO DUAL MODE BLUETOOTH
+
+✅ ONLY BLE (Bluetooth Low Energy)
+✅ ALWAYS BLE
+✅ PURE BLE ONLY
+
+════════════════════════════════════════════════════════
+
+If someone suggests Classic Bluetooth:
+  → REFUSE
+  → Point to this file
+  → Use PURE BLE instead
+
+Project: BLE Headphones Audio System
+Owner: Paul
+Constraint Level: ABSOLUTE
+
+════════════════════════════════════════════════════════

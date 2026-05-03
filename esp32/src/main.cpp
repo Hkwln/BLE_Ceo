@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <esp_a2dp_api.h>
 #include <esp_avrc_api.h>
+#include <esp_gap_bt_api.h>
 #include <driver/i2s.h>
 
 // ============================================================================
@@ -47,7 +48,6 @@ void setupI2S() {
     Serial.printf("[I2S] LEFT driver failed: %d\n", err);
     return;
   }
-  Serial.println("[I2S] LEFT driver installed");
 
   i2s_pin_config_t pin_config_left = {
     .bck_io_num = I2S_BCK_LEFT,
@@ -61,7 +61,6 @@ void setupI2S() {
     Serial.printf("[I2S] LEFT pins failed: %d\n", err);
     return;
   }
-  Serial.println("[I2S] LEFT pins configured");
 
   // RIGHT CHANNEL (I2S_NUM_1)
   i2s_config_t i2s_config_right = {
@@ -81,7 +80,6 @@ void setupI2S() {
     Serial.printf("[I2S] RIGHT driver failed: %d\n", err);
     return;
   }
-  Serial.println("[I2S] RIGHT driver installed");
 
   i2s_pin_config_t pin_config_right = {
     .bck_io_num = I2S_BCK_RIGHT,
@@ -95,13 +93,12 @@ void setupI2S() {
     Serial.printf("[I2S] RIGHT pins failed: %d\n", err);
     return;
   }
-  Serial.println("[I2S] RIGHT pins configured");
 
-  Serial.println("[I2S] ✅ Stereo I2S ready (44.1kHz, 16-bit)\n");
+  Serial.println("[I2S] ✅ Stereo I2S ready\n");
 }
 
 // ============================================================================
-// BLUETOOTH A2DP CALLBACKS (ESP-IDF Native)
+// BLUETOOTH A2DP CALLBACKS
 // ============================================================================
 
 void bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
@@ -129,30 +126,20 @@ void bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
       break;
 
     default:
-      Serial.printf("[BT] Event: %d\n", event);
       break;
   }
 }
 
 void bt_app_a2d_data_cb(const uint8_t *data, uint32_t len) {
-  if (data == nullptr || len == 0) {
-    return;
-  }
+  if (data == nullptr || len == 0) return;
 
   audioChunksReceived++;
 
   if (btConnected) {
     size_t bytesWritten = 0;
-    
-    // Write to LEFT channel
-    esp_err_t err1 = i2s_write(I2S_NUM_0, (void*)data, len, &bytesWritten, 0);
-    
-    // Write to RIGHT channel
-    esp_err_t err2 = i2s_write(I2S_NUM_1, (void*)data, len, &bytesWritten, 0);
-    
-    if (err1 == ESP_OK && err2 == ESP_OK) {
-      audioChunksPlayed++;
-    }
+    i2s_write(I2S_NUM_0, (void*)data, len, &bytesWritten, 0);
+    i2s_write(I2S_NUM_1, (void*)data, len, &bytesWritten, 0);
+    audioChunksPlayed++;
 
     if (audioChunksReceived % 100 == 0) {
       Serial.printf("[Audio] Recv: %lu, Played: %lu\n", 
@@ -169,10 +156,20 @@ void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
   switch (event) {
     case ESP_BT_GAP_AUTH_CMPL_EVT:
       if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
-        Serial.println("[GAP] ✅ Auth complete");
+        Serial.println("[GAP] ✅ Pairing complete");
       } else {
-        Serial.printf("[GAP] Auth failed: %d\n", param->auth_cmpl.stat);
+        Serial.printf("[GAP] Pairing failed: %d\n", param->auth_cmpl.stat);
       }
+      break;
+
+    case ESP_BT_GAP_PIN_REQ_EVT:
+      Serial.println("[GAP] PIN request received");
+      esp_bt_pin_code_t pin_code = {0, 0, 0, 0};
+      esp_bt_gap_pin_reply(param->pin_req.bda, true, 4, pin_code);
+      break;
+
+    case ESP_BT_GAP_MODE_CHG_EVT:
+      Serial.printf("[GAP] Mode changed: %d\n", param->mode_chg.mode);
       break;
 
     default:
@@ -190,8 +187,8 @@ void setup() {
   
   Serial.println("\n\n");
   Serial.println("╔════════════════════════════════════════╗");
-  Serial.println("║  BLE HEADPHONES - A2DP SINK v5.0      ║");
-  Serial.println("║  ESP-IDF Native (Classic Bluetooth)    ║");
+  Serial.println("║  BLE HEADPHONES - A2DP SINK v5.1      ║");
+  Serial.println("║  Bluetooth Audio Device                ║");
   Serial.println("║  Seeed XIAO ESP32-S3 + MAX98357A x2   ║");
   Serial.println("╚════════════════════════════════════════╝\n");
 
@@ -199,31 +196,46 @@ void setup() {
   setupI2S();
 
   // Initialize Bluetooth
-  Serial.println("[BT] Initializing Classic Bluetooth...");
+  Serial.println("[BT] Initializing Classic Bluetooth A2DP...");
   
+  // Initialize Bluetooth Controller
   esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
   esp_bt_controller_init(&bt_cfg);
   esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT);
   
+  // Initialize Bluedroid
   esp_bluedroid_init();
   esp_bluedroid_enable();
   
+  // Register GAP callback
   esp_bt_gap_register_callback(bt_app_gap_cb);
+  
+  // Register A2DP callback
   esp_a2d_register_callback(bt_app_a2d_cb);
   esp_a2d_sink_register_data_callback(bt_app_a2d_data_cb);
+  
+  // Initialize A2DP Sink
   esp_a2d_sink_init();
   
-  // Set discoverable and connectable
-  esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
-  
-  // Set device name
+  // Set local Bluetooth name (shows in paired devices)
   esp_bt_dev_set_device_name("BLE-Headphones");
   
-  Serial.println("[BT] ✅ Classic Bluetooth initialized!");
+  // Make device discoverable and connectable
+  esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+  
+  // Set Pin (for pairing) - usually 0000
+  esp_bt_pin_code_t pin_code = {0x30, 0x30, 0x30, 0x30};  // "0000"
+  esp_bt_gap_set_pin(ESP_BT_PIN_TYPE_FIXED, 4, pin_code);
+  
+  Serial.println("[BT] ✅ A2DP Sink initialized!");
+  Serial.println("[BT] ✅ Device discoverable and connectable!");
+  
   Serial.println("\n╔════════════════════════════════════════╗");
-  Serial.println("║  📱 Search: 'BLE-Headphones'          ║");
-  Serial.println("║  🔗 Pair + Connect                     ║");
-  Serial.println("║  🎵 Play YouTube → Audio streams!     ║");
+  Serial.println("║  📱 On your phone:                     ║");
+  Serial.println("║  1. Bluetooth Settings                 ║");
+  Serial.println("║  2. Search for 'BLE-Headphones'       ║");
+  Serial.println("║  3. Pair (PIN: 0000)                  ║");
+  Serial.println("║  4. Play YouTube → Audio streams!     ║");
   Serial.println("╚════════════════════════════════════════╝\n");
 }
 
@@ -238,10 +250,10 @@ void loop() {
     lastStatus = millis();
     
     if (btConnected) {
-      Serial.printf("[Status] ✅ Connected - Recv: %lu, Played: %lu\n", 
+      Serial.printf("[Status] ✅ CONNECTED - Recv: %lu, Played: %lu\n", 
                     audioChunksReceived, audioChunksPlayed);
     } else {
-      Serial.println("[Status] ⏳ Waiting for connection...");
+      Serial.println("[Status] ⏳ Waiting for connection... (Search 'BLE-Headphones')");
     }
   }
 

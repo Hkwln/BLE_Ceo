@@ -46,6 +46,7 @@ class MainActivity : AppCompatActivity() {
     private var isStreamingAudio = false
     private var audioThread: Thread? = null
     private var mediaProjectionManager: MediaProjectionManager? = null
+    private var mediaProjection: android.media.projection.MediaProjection? = null
     
     private val SERVICE_UUID = UUID.fromString("4fafc201-1fb5-459e-8fcc-c5c9c331914b")
     private val CHAR_UUID = UUID.fromString("beb5483e-36e1-4688-b7f5-ea07361b26a8")
@@ -65,8 +66,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.disconnect_button).setOnClickListener { disconnect() }
 
         log("════════════════════════════════════════")
-        log("BLE Headphones - v14.0")
-        log("nRF Connect Permission Model")
+        log("BLE Headphones - v15.0 DEBUG")
         log("════════════════════════════════════════")
 
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -80,6 +80,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         log("✅ Bluetooth available")
+        log("Android: ${Build.VERSION.SDK_INT}")
 
         // Enable Bluetooth if needed
         if (!bluetoothAdapter!!.isEnabled) {
@@ -91,38 +92,27 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Request ALL permissions upfront (nRF Connect style)
         ensureAllPermissionsGranted()
     }
 
-    /**
-     * nRF Connect approach: Request ALL permissions needed upfront
-     * This prevents "permission denied" errors later during scanning/connecting
-     */
     private fun ensureAllPermissionsGranted() {
         val requiredPermissions = mutableListOf<String>()
 
-        // Bluetooth permissions - ALWAYS needed
         requiredPermissions.add(Manifest.permission.BLUETOOTH)
         requiredPermissions.add(Manifest.permission.BLUETOOTH_ADMIN)
 
-        // Android 12+ specific permissions
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             requiredPermissions.add(Manifest.permission.BLUETOOTH_SCAN)
             requiredPermissions.add(Manifest.permission.BLUETOOTH_CONNECT)
         }
 
-        // Location - REQUIRED for BLE scanning (even though we don't use it)
-        // This is Android's security model - can't scan BLE without location permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             requiredPermissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
             requiredPermissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
 
-        // Audio capture
         requiredPermissions.add(Manifest.permission.RECORD_AUDIO)
 
-        // Check which permissions are missing
         val missingPermissions = mutableListOf<String>()
         for (permission in requiredPermissions) {
             if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
@@ -131,23 +121,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (missingPermissions.isNotEmpty()) {
-            log("🔐 Requesting ${missingPermissions.size} permissions:")
-            for (perm in missingPermissions) {
-                log("   ✓ ${formatPermissionName(perm)}")
-            }
-            // Request ALL missing permissions at once (like nRF Connect)
+            log("🔐 Requesting ${missingPermissions.size} permissions")
             ActivityCompat.requestPermissions(
                 this,
                 missingPermissions.toTypedArray(),
                 PERMISSION_REQUEST_CODE
             )
         } else {
-            log("✅ All permissions already granted!")
+            log("✅ All permissions granted!")
         }
-    }
-
-    private fun formatPermissionName(permission: String): String {
-        return permission.split(".").last().replace("_", " ").lowercase()
     }
 
     override fun onRequestPermissionsResult(
@@ -158,49 +140,44 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
         if (requestCode == PERMISSION_REQUEST_CODE) {
-            log("\n📋 Permission Results:")
+            log("\n📋 Permissions:")
             var allGranted = true
 
             for (i in permissions.indices) {
                 val permission = permissions[i]
                 val granted = grantResults[i] == PackageManager.PERMISSION_GRANTED
                 val icon = if (granted) "✅" else "❌"
-                log("$icon ${formatPermissionName(permission)}")
-
-                if (!granted) {
-                    allGranted = false
-                }
+                val name = permission.split(".").last()
+                log("$icon $name")
+                if (!granted) allGranted = false
             }
 
             if (allGranted) {
-                log("\n🎉 All permissions granted!")
+                log("✅ All granted!")
             } else {
-                log("\n⚠️ Some permissions were denied")
-                log("App may not work correctly")
+                log("⚠️ Some denied")
             }
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_MEDIA_PROJECTION && resultCode == RESULT_OK) {
+        if (requestCode == REQUEST_MEDIA_PROJECTION && resultCode == RESULT_OK && data != null) {
             log("✅ Screen capture authorized")
+            mediaProjection = mediaProjectionManager?.getMediaProjection(resultCode, data)
+            startAudioStream(mediaProjection)
         }
     }
 
     private fun onScanClicked() {
-        if (isScanning) {
-            stopScan()
-        } else {
-            startScan()
-        }
+        if (isScanning) stopScan() else startScan()
     }
 
     private fun startScan() {
         log("\n🔍 SCAN START")
 
         if (!bluetoothAdapter!!.isEnabled) {
-            log("❌ Bluetooth is OFF")
+            log("❌ Bluetooth OFF")
             return
         }
 
@@ -218,29 +195,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         try {
-            // Check permission before scanning (like nRF Connect)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (ActivityCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.BLUETOOTH_SCAN
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    log("❌ BLUETOOTH_SCAN permission required!")
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                    log("❌ BLUETOOTH_SCAN denied")
                     isScanning = false
                     return
                 }
             }
 
             bluetoothAdapter!!.startLeScan(callback)
-            log("✅ Scanning for devices...")
+            log("✅ Scanning...")
 
             handler.postDelayed({ stopScan() }, 10000)
 
-        } catch (e: SecurityException) {
-            log("❌ Security error: ${e.message}")
-            isScanning = false
         } catch (e: Exception) {
-            log("❌ Scan error: ${e.message}")
+            log("❌ Scan: ${e.message}")
             isScanning = false
         }
     }
@@ -267,7 +236,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun addDeviceButton(device: BluetoothDevice) {
         addedDevices.add(device.address)
-
         val button = Button(this).apply {
             text = "${device.name ?: "Unknown"}\n${device.address}"
             setOnClickListener { connectToDevice(device) }
@@ -279,7 +247,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         devicesContainer?.addView(button)
-        log("📱 Found: ${device.name}")
+        log("📱 Found: ${device.name ?: "Unknown"}")
     }
 
     private fun connectToDevice(device: BluetoothDevice) {
@@ -289,12 +257,8 @@ class MainActivity : AppCompatActivity() {
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (ActivityCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    log("❌ BLUETOOTH_CONNECT permission required!")
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    log("❌ BLUETOOTH_CONNECT denied")
                     return
                 }
             }
@@ -302,10 +266,8 @@ class MainActivity : AppCompatActivity() {
             bluetoothGatt = device.connectGatt(this, false, gattCallback)
             log("✅ Connecting...")
 
-        } catch (e: SecurityException) {
-            log("❌ Security error: ${e.message}")
         } catch (e: Exception) {
-            log("❌ Connection error: ${e.message}")
+            log("❌ Connect: ${e.message}")
         }
     }
 
@@ -316,11 +278,7 @@ class MainActivity : AppCompatActivity() {
                     log("✅ CONNECTED!")
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            if (ActivityCompat.checkSelfPermission(
-                                    this@MainActivity,
-                                    Manifest.permission.BLUETOOTH_CONNECT
-                                ) == PackageManager.PERMISSION_GRANTED
-                            ) {
+                            if (ActivityCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
                                 gatt?.discoverServices()
                             }
                         } else {
@@ -335,9 +293,7 @@ class MainActivity : AppCompatActivity() {
                     stopAudioStream()
                     try {
                         gatt?.close()
-                    } catch (e: Exception) {
-                        // Silent
-                    }
+                    } catch (e: Exception) {}
                     bluetoothGatt = null
                 }
             }
@@ -345,23 +301,23 @@ class MainActivity : AppCompatActivity() {
 
         override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
             if (status == 0) {
-                log("✅ Services discovered")
+                log("✅ Services found")
 
                 val service = gatt?.getService(SERVICE_UUID)
                 if (service != null) {
                     dataCharacteristic = service.getCharacteristic(CHAR_UUID)
                     if (dataCharacteristic != null) {
-                        log("✅ Found data characteristic")
-                        log("🎵 Starting audio stream...")
+                        log("✅ Characteristic found")
+                        log("🎬 Requesting screen capture...")
                         requestScreenCapture()
                     } else {
-                        log("❌ Characteristic not found")
+                        log("❌ Characteristic NOT found")
                     }
                 } else {
-                    log("❌ Service not found")
+                    log("❌ Service NOT found")
                 }
             } else {
-                log("❌ Service discovery failed")
+                log("❌ Discovery failed: $status")
             }
         }
     }
@@ -375,34 +331,42 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
             } catch (e: Exception) {
-                log("Screen capture not available")
+                log("❌ Screen capture: ${e.message}")
             }
         }
+        log("⚠️ Fallback to microphone")
         startAudioStream(null)
     }
 
     private fun startAudioStream(mediaProjection: android.media.projection.MediaProjection? = null) {
-        if (isStreamingAudio) return
+        if (isStreamingAudio) {
+            log("⚠️ Already streaming")
+            return
+        }
 
-        // Check RECORD_AUDIO permission
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             log("❌ RECORD_AUDIO permission required!")
             return
         }
 
         isStreamingAudio = true
-        log("🎤 Initializing audio...")
+        log("\n🎤 Starting audio stream...")
+        log("MediaProjection: ${mediaProjection != null}")
 
         try {
             val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+            log("Buffer size: $bufferSize bytes")
 
             audioRecord = if (Build.VERSION.SDK_INT >= 29 && mediaProjection != null) {
+                log("🎬 Attempting system audio capture...")
                 try {
                     val config = android.media.AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
                         .addMatchingUsage(android.media.AudioAttributes.USAGE_MEDIA)
                         .build()
 
-                    AudioRecord.Builder()
+                    log("✅ Config built")
+
+                    val record = AudioRecord.Builder()
                         .setAudioSource(MediaRecorder.AudioSource.DEFAULT)
                         .setAudioFormat(
                             AudioFormat.Builder()
@@ -414,8 +378,12 @@ class MainActivity : AppCompatActivity() {
                         .setBufferSizeInBytes(bufferSize * 2)
                         .setAudioPlaybackCaptureConfig(config)
                         .build()
+
+                    log("✅ AudioRecord created")
+                    record
                 } catch (e: Exception) {
-                    log("System audio not available, using microphone")
+                    log("❌ System audio: ${e.message}")
+                    log("⚠️ Using microphone instead")
                     AudioRecord(
                         MediaRecorder.AudioSource.MIC,
                         SAMPLE_RATE,
@@ -425,6 +393,7 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
             } else {
+                log("🎤 Using microphone (API ${Build.VERSION.SDK_INT})")
                 AudioRecord(
                     MediaRecorder.AudioSource.MIC,
                     SAMPLE_RATE,
@@ -435,7 +404,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (audioRecord?.state != 1) {
-                log("❌ AudioRecord initialization failed")
+                log("❌ AudioRecord state: ${audioRecord?.state} (expected 1)")
                 isStreamingAudio = false
                 return
             }
@@ -447,6 +416,7 @@ class MainActivity : AppCompatActivity() {
             audioThread = Thread {
                 val buffer = ByteArray(1024)
                 var chunks = 0
+                var zeros = 0
 
                 while (isStreamingAudio && audioRecord != null) {
                     try {
@@ -454,21 +424,40 @@ class MainActivity : AppCompatActivity() {
                         if (bytesRead > 0) {
                             sendAudioData(buffer.copyOf(bytesRead))
                             chunks++
+
+                            // Check if we're getting silence
+                            var isSilent = true
+                            for (i in 0 until minOf(bytesRead, 100)) {
+                                if (buffer[i].toInt() != 0) {
+                                    isSilent = false
+                                    break
+                                }
+                            }
+
+                            if (isSilent) {
+                                zeros++
+                            } else {
+                                zeros = 0
+                            }
+
                             if (chunks % 50 == 0) {
                                 runOnUiThread {
-                                    log("🔊 ${chunks} chunks sent")
+                                    val silenceStatus = if (zeros > 20) "🔇 SILENCE" else "🔊 OK"
+                                    log("Chunks: $chunks ($silenceStatus)")
                                 }
                             }
                         }
                     } catch (e: Exception) {
+                        log("❌ Read: ${e.message}")
                         break
                     }
                 }
+                log("🛑 Audio thread ended ($chunks chunks)")
             }
             audioThread?.start()
 
         } catch (e: Exception) {
-            log("❌ Audio error: ${e.message}")
+            log("❌ Setup: ${e.message}")
             isStreamingAudio = false
         }
     }
@@ -478,11 +467,7 @@ class MainActivity : AppCompatActivity() {
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (ActivityCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                     return
                 }
             }
@@ -506,13 +491,14 @@ class MainActivity : AppCompatActivity() {
         if (!isStreamingAudio) return
 
         isStreamingAudio = false
-        log("🛑 Stopping audio...")
+        log("\n🛑 Stopping audio...")
 
         try {
             audioRecord?.stop()
             audioRecord?.release()
             audioRecord = null
             audioThread?.join(1000)
+            mediaProjection?.stop()
             log("✅ Stopped")
         } catch (e: Exception) {
             log("Error: ${e.message}")
@@ -525,11 +511,7 @@ class MainActivity : AppCompatActivity() {
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (ActivityCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) == PackageManager.PERMISSION_GRANTED
-                ) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
                     bluetoothGatt?.disconnect()
                     bluetoothGatt?.close()
                 }

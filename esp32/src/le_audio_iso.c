@@ -2,6 +2,7 @@
 #include "le_audio_hci.h"
 #include "esp_log.h"
 #include "esp_bt.h"
+#include "esp_bt_main.h"
 
 static const char *TAG = "LE_AUDIO_ISO";
 

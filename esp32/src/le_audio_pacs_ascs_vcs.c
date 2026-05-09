@@ -1,6 +1,7 @@
 #include "le_audio_pacs_ascs_vcs.h"
 #include "esp_log.h"
 #include "esp_bt.h"
+#include "esp_bt_main.h"
 #include "esp_gattc_api.h"
 #include "esp_gatts_api.h"
 

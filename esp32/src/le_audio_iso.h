@@ -38,6 +38,10 @@ typedef struct {
     uint16_t tx_offset;
 } le_audio_iso_buffers_t;
 
+// Callback Types
+typedef void (*le_audio_iso_rx_cb_t)(uint16_t conn_handle, const uint8_t *data, uint16_t length);
+typedef void (*le_audio_iso_tx_done_cb_t)(uint16_t conn_handle, int status);
+
 // Function prototypes
 void le_audio_iso_init(void);
 
@@ -47,7 +51,12 @@ int le_audio_iso_remove_data_path(uint16_t conn_handle, uint8_t data_path_id);
 
 // ISO RX/TX Handlers
 void le_audio_iso_rx_handler(uint16_t conn_handle, const uint8_t *data, uint16_t length);
-int le_audio_iso_tx_handler(uint16_t conn_handle, uint8_t *data, uint16_t length);
+int le_audio_iso_send(uint16_t conn_handle, const uint8_t *lc3_data, uint16_t length);
+bool le_audio_iso_receive(uint16_t conn_handle, uint8_t *out_buf, uint16_t *out_len, uint32_t timeout_ticks);
+
+// Callbacks
+void le_audio_iso_register_rx_cb(le_audio_iso_rx_cb_t cb);
+void le_audio_iso_register_tx_done_cb(le_audio_iso_tx_done_cb_t cb);
 
 // Buffer management
 void le_audio_iso_set_rx_buffer(uint8_t *buffer, uint16_t size);
@@ -55,6 +64,8 @@ void le_audio_iso_set_tx_buffer(uint8_t *buffer, uint16_t size);
 
 // Status
 int le_audio_iso_is_ready(uint16_t conn_handle);
+void le_audio_iso_start_tasks(void);
+void le_audio_iso_print_stats(uint16_t conn_handle);
 
 #ifdef __cplusplus
 }

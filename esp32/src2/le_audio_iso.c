@@ -4,6 +4,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "le_audio_pacs_ascs_vcs.h"
 #include <string.h>
 
 static const char *TAG = "ISO";
@@ -182,8 +183,6 @@ static void iso_tx_task(void *arg) {
   while (1) {
     if (xQueueReceive(tx_queue, &frame, portMAX_DELAY) == pdTRUE) {
       // Forward to GATT layer
-      extern void le_audio_gatt_send_audio_frame(uint16_t, const uint8_t *,
-                                                 uint16_t);
       le_audio_gatt_send_audio_frame(frame.conn_handle, frame.data,
                                      frame.length);
       if (tx_done_cb)

@@ -36,6 +36,7 @@ typedef void (*le_audio_hci_event_cb_t)(const le_audio_hci_event_t *evt);
 void le_audio_hci_init(void);
 void le_audio_hci_register_event_cb(le_audio_hci_event_cb_t cb);
 void le_audio_hci_notify_stream_ready(uint16_t conn_handle);
+void le_audio_hci_release_conn(uint16_t conn_handle);
 le_audio_cis_state_t le_audio_hci_get_cis_state(uint16_t conn_handle);
 
 #ifdef __cplusplus

@@ -274,8 +274,9 @@ static void on_ase_cp(const uint8_t *data, uint16_t len) {
 static void on_vol_cp(const uint8_t *data, uint16_t len) {
   if (!data || len < 2)
     return;
-  if (data[1] != vol_state[2]) {
-    ESP_LOGW(TAG, "VCS bad counter %u≠%u", data[1], vol_state[2]);
+  uint8_t expected = (uint8_t)(vol_state[2] + 1);
+  if (data[1] != expected) {
+    ESP_LOGW(TAG, "VCS bad counter %u expected %u", data[1], expected);
     return;
   }
   switch (data[0]) {
@@ -407,6 +408,7 @@ void le_audio_register_audio_rx_cb(le_audio_audio_rx_cb_t cb) {
 void le_audio_register_conn_cb(le_audio_conn_cb_t cb) { conn_cb = cb; }
 void le_audio_gatt_send_audio_frame(uint16_t h, const uint8_t *data,
                                     uint16_t length) {
+  (void)h; // single-connection: use static conn_id
   if (!connected || !data || length == 0)
     return;
   esp_ble_gatts_send_indicate(gatt_if, conn_id, htable[IDX_AUDIO_CHAR_VAL],

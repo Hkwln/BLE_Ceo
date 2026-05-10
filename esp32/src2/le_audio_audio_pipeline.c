@@ -106,12 +106,16 @@ void le_audio_pipeline_init(void) {
 }
 
 bool le_audio_pipeline_start(uint16_t conn_handle) {
+  if (!pipeline_q || !decoder) {
+    ESP_LOGE(TAG, "Pipeline not initialised — call le_audio_pipeline_init first");
+    return false;
+  }
   if (running)
     return true;
 
   running = true;
   BaseType_t ok = xTaskCreatePinnedToCore(
-      pipeline_task, "audio", 8192, NULL, configMAX_PRIORITIES - 1,
+      pipeline_task, "audio", 16384, NULL, configMAX_PRIORITIES - 1,
       &task_handle, 1); // Core 1 (BLE uses Core 0)
   if (ok != pdPASS) {
     task_handle = NULL;
@@ -128,10 +132,8 @@ void le_audio_pipeline_stop(void) {
   if (!running)
     return;
   running = false;
-  // Unblock the task if it's waiting on the queue
-  pframe_t dummy = {0};
-  xQueueSend(pipeline_q, &dummy, 0);
-  // Wait for task to exit
+  // Wait for the task to finish its current frame and exit
+  // (it will see running == false on next loop iteration)
   vTaskDelay(pdMS_TO_TICKS(50));
   // Flush queue
   xQueueReset(pipeline_q);

@@ -64,6 +64,7 @@ static void on_connection(uint16_t conn_handle, bool is_connected) {
     if (pipeline_started) {
       le_audio_pipeline_stop();
       le_audio_iso_remove_data_path(active_conn, 0);
+      le_audio_hci_release_conn(active_conn);
       pipeline_started = false;
     }
     active_conn = 0xFFFF;

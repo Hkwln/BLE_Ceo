@@ -33,15 +33,23 @@ void le_audio_hci_register_event_cb(le_audio_hci_event_cb_t cb) {
 }
 
 void le_audio_hci_notify_stream_ready(uint16_t conn_handle) {
+  bool assigned = false;
+
   xSemaphoreTake(hci_mutex, portMAX_DELAY);
   for (int i = 0; i < 4; i++) {
     if (cis_ctx[i].conn_handle == 0xFFFF) {
       cis_ctx[i].conn_handle = conn_handle;
       cis_ctx[i].state = LE_AUDIO_CIS_STREAMING;
+      assigned = true;
       break;
     }
   }
   xSemaphoreGive(hci_mutex);
+
+  if (!assigned) {
+    ESP_LOGW(TAG, "No free CIS slot for conn=0x%04X", conn_handle);
+    return;
+  }
 
   if (user_event_cb) {
     le_audio_hci_event_t evt = {
@@ -52,6 +60,18 @@ void le_audio_hci_notify_stream_ready(uint16_t conn_handle) {
     user_event_cb(&evt);
   }
   ESP_LOGI(TAG, "Stream ready: conn=0x%04X", conn_handle);
+}
+
+void le_audio_hci_release_conn(uint16_t conn_handle) {
+  xSemaphoreTake(hci_mutex, portMAX_DELAY);
+  for (int i = 0; i < 4; i++) {
+    if (cis_ctx[i].conn_handle == conn_handle) {
+      cis_ctx[i].state = LE_AUDIO_CIS_IDLE;
+      cis_ctx[i].conn_handle = 0xFFFF;
+      break;
+    }
+  }
+  xSemaphoreGive(hci_mutex);
 }
 
 le_audio_cis_state_t le_audio_hci_get_cis_state(uint16_t conn_handle) {
